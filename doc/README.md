@@ -18,6 +18,8 @@ A list of known bugs is available [here](https://issues.jenkins-ci.org/issues/?j
 
 [New Features and Enhancements](#new-features-and-enhancements)
 
+[Release notes](#release-notes)
+
 [Changelog](#changelog)
 
 [Supported Integrations](#supported-integrations)
@@ -51,38 +53,27 @@ Starting with version 1.641 (or 1.625.3), Jenkins introduced the  **Content-Secu
 
 ## New Features and Enhancements
 
-Version 7.3 introduced the following enhancements:
+Version 7.5 introduced the following enhancements and fixes:
 
-**ALM Octane**
+**ALM**
 
-- Code improvements for MBT, model-based testing.
-- Support for Codeless text executions.
-- Defect fixes.
-
-**Model-Based Testing**
-
-- Code improvements.
-- Support for Windows and Linux upper case/lower case strings.
-- Defect fixes.
+- For the **Upload test result to ALM using field mapping** build step:
+    - You can now search for a test set by its name in a specific folder instead of all folders. 
+    - Defect fix: The check for the test map name is suppressed if no new test is being created.
 
 **UFT One**
 
-- Partial test result reporting for aborted Jenkins jobs, for file system executions. When a Jenkins job execution is aborted or cancelled, all the test results until that point, will be available in the build.
-- Improved parameter configuration for UFT One tests using a new parameter table, for file system and ALM execution. You can now add different types of parameters, for both GUI and API tests. 
-- Improvements in the re-run option for failed scenarios in file system executions, where tests finished with a Warning status.
-- Improved reporting for UFT One tests with same name, but different locations. 
-- Enhancements to secure log4j issues.
+-	Layout fixes that were broken in Jenkins 2.346.1 LTS latest version. 
 
-**Service Virtualization**
-
-- Ability to switch virtual services to OFFLINE mode.
- 
 For information about enhancements introduced in previous versions, see [What's new in earlier versions](WhatsNewEarlier.md). 
+
+## Release notes
+
+Pipeline scripts are empty in the script editor from within job configurations. You can view scripts in the config.xml file for each job. This issue does not affect the functionality of the plugin. **Note:** This limitation only applies to version 7.4. A fix was provided in version 7.4.1 Beta.
 
 ## Changelog
 
 The [Changelog ](https://wiki.jenkins.io/display/JENKINS/Changelog)page lists the bug fix changes in the versions of the plugin.
-
 
 
 - [Version 5.6.2](https://wiki.jenkins.io/display/JENKINS/Changelog#Version5.6.2(Dec19,2018))
@@ -106,13 +97,13 @@ This plugin supports the following Micro Focus product versions:
 | ALM (Application Lifecycle Management)              | 12.xx, 15.x                                                  | [ALM Integration  page](https://admhelp.microfocus.com/alm/en/latest/online_help/Content/jenkins-integration.htm)                  |
 | ALM Lab Management                                  | 12.xx, 15.x                                                  | [ALM Integration page](https://admhelp.microfocus.com/alm/en/latest/online_help/Content/jenkins-integration.htm#mt-item-3) |
 | ALM Octane                                          | 12.53.20 and higher (12.55.4 or later required for direct UFT One integration and for LoadRunner Enterprise integration using pipelines) | [ALM Octane Help Center](https://admhelp.microfocus.com/octane/en/latest/Online/Content/AdminGuide/jenkins-integration.htm) |
-| Model-based Testing                                          | 16.0.300 and higher  | [Model-Based Testing Help Center](https://admhelp.microfocus.com/mbt) |
-| LoadRunner Professional                             | 12.xx, 2020 and higher                                                  | [LoadRunner Professional Integration page](LR_Integration.md)             |
-| UFT Mobile                                           | 2.0 and higher                                               | [UFT Mobile Integration page](https://github.com/jenkinsci/hpe-application-automation-tools-plugin/blob/latest/doc/UFT_Mobile_Integration.md) |
+| Model-based Testing                                 | 16.0.300 and higher  | [Model-Based Testing Help Center](https://admhelp.microfocus.com/mbt) |
+| LoadRunner Professional                             | 12.xx, 2020 and higher                                       | [LoadRunner Professional Integration page](https://admhelp.microfocus.com/lr/en/latest/help/WebHelp/Content/Controller/c_jenkins.htm)             |
+| UFT Mobile                                          | 2.0 and higher                                               | [UFT Mobile Integration page](https://admhelp.microfocus.com/lr/en/latest/help/WebHelp/Content/Controller/c_jenkins.htm) |
 | LoadRunner Enterprise                               | 12.xx (12.53 or higher required for trend reports), 2020 and higher     | [LoadRunner Enterprise Help Center](https://admhelp.microfocus.com/lre/en/latest/online_help/Content/PC/Continuous-Integration-Jenkins.htm) |
 | Service Virtualization                              | 3.80 and higher                                              | [Service Virtualization Help Center](https://admhelp.microfocus.com/sv/en/latest/Help/Content/UG/c_continuous_integration.htm) |
-| UFT One                                            | 12.xx and 14.03 and higher                                   | [UFT One Help Center](https://admhelp.microfocus.com/uft/en/latest/UFT_Help/Content/User_Guide/Jenkins.htm) |
-| UFT Developer                                      | 14.03 and higher                                             | [UFT Developer Help Center](https://admhelp.microfocus.com/uftdev/en/latest/HelpCenter/Content/HowTo/CI_Tools.htm)<br />Blog: [Integrating LeanFT with Jenkins in just a few simple steps](https://community.microfocus.com/adtd/b/sws-alm/posts/integrating-leanft-with-jenkins-in-just-a-few-simple-steps) |
+| UFT One                                             | 12.xx and 14.03 and higher                                   | [UFT One Help Center](https://admhelp.microfocus.com/uft/en/latest/UFT_Help/Content/User_Guide/Jenkins.htm) |
+| UFT Developer                                       | 14.03 and higher                                             | [UFT Developer Help Center](https://admhelp.microfocus.com/uftdev/en/latest/HelpCenter/Content/HowTo/CI_Tools.htm)<br />Blog: [Integrate LeanFT with Jenkins in just a few simple steps](https://community.microfocus.com/adtd/b/sws-alm/posts/integrating-leanft-with-jenkins-in-just-a-few-simple-steps) |
 
 ## Prerequisites
 
@@ -228,18 +219,18 @@ The available Pipeline job types are: loadRunnerTest, uftScenarioLoad, runFromFS
 
 | Product                | Pipeline step name           | Description                                                        |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| LoadRunner Professional| loadRunnerTest               | Run LoadRunner Professional tests from a file system scenario file |
-| UFT One                | uftScenarioLoad              | Run a UFT scenario from file system scenario                       |
-| UFT One                | runFromFSBuilder             | Execute UFT Tests from file system                                 |
-| ALM                    | runFromAlmBuilder            | Execute functional tests from ALM                                  |
-| ALM Lab Management     | sseBuild                     | Execute tests using ALM Lab Management                             |
-| ALM Lab Management     | sseBuildAndPublish           | Execute tests using ALM Lab Management and publish test results    |
-| LoadRunner Enterprise  | pcBuild                      | Execute tests using LoadRunner Enterprise                          |
-| Service Virtualization | svChangeModeStep             | Change the mode of a virtual service                               |
-| Service Virtualization | svDeployStep                 | Deploy a virtual service                                           |
-| Service Virtualization | svExportStep                 | Export a virtual service                                           |
-| Service Virtualization | svUndeployStep               | Undeploy a virtual service                                         |
-| UFT One, ALM, ALM LM   | publishMicroFocusTestResults | Publish Test Results for FS, ALM and ALM Lab Management executions |                                   |
+| LoadRunner Professional| loadRunnerTest               | Run LoadRunner Professional tests from a file system scenario file.|
+| UFT One                | uftScenarioLoad              | Run a UFT scenario. **Deprecated**, but backwards compatibility exists.|
+| UFT One                | runFromFSBuilder             | Execute UFT One Tests from the file system.                        |
+| ALM                    | runFromAlmBuilder            | Execute functional tests from ALM.                                 |
+| ALM Lab Management     | sseBuild                     | Execute tests using ALM Lab Management.                            |
+| ALM Lab Management     | sseBuildAndPublish           | Execute tests using ALM Lab Management and publish test results.   |
+| LoadRunner Enterprise  | pcBuild                      | Execute tests using LoadRunner Enterprise.                         |
+| Service Virtualization | svChangeModeStep             | Change the mode of a virtual service.                              |
+| Service Virtualization | svDeployStep                 | Deploy a virtual service.                                          |
+| Service Virtualization | svExportStep                 | Export a virtual service.                                          |
+| Service Virtualization | svUndeployStep               | Undeploy a virtual service.                                        |
+| UFT One, ALM, ALM LM   | publishMicroFocusTestResults | Publish Test Results for FS, ALM and ALM Lab Management executions. |                                   |
 
 Pipeline jobs are not supported for UFT Mobile uploads, ALM test uploader, and ALM AUT job types.
 

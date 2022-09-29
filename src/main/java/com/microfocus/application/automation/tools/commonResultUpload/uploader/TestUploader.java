@@ -36,7 +36,6 @@ import com.microfocus.application.automation.tools.commonResultUpload.service.Re
 import com.microfocus.application.automation.tools.commonResultUpload.service.VersionControlService;
 import com.microfocus.application.automation.tools.commonResultUpload.xmlreader.model.XmlResultEntity;
 import com.microfocus.application.automation.tools.results.service.almentities.AlmCommonProperties;
-import com.microfocus.application.automation.tools.sse.sdk.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import java.util.List;
@@ -82,6 +81,9 @@ public class TestUploader {
             Map<String, String> test = xmlResultEntity.getValueMap();
             Map<String, String> newTest;
 
+            String attachment = test.get("attachment");
+            test.remove("attachment");
+
             if (!StringUtils.isEmpty(params.get(ALM_TEST_FOLDER))) {
                 // Create or find a exists folder
                 Map<String, String> folder = folderService.createOrFindPath(
@@ -95,7 +97,9 @@ public class TestUploader {
                         TEST_REST_PREFIX, TEST_FOLDERS_REST_PREFIX,
                         new String[]{"id", "name", SUB_TYPE_ID, VC_VERSION_NUMBER});
                 if (existsTest != null) {
-                    newTest = existsTest;
+                    // If exists, update the test.
+                    existsTest.putAll(test);
+                    newTest = restService.update(TEST_REST_PREFIX, existsTest);
                 } else {
                     logger.log("Test not found by criteria:");
                     for (Map.Entry<String, String> entry : test.entrySet()) {
@@ -130,7 +134,7 @@ public class TestUploader {
                 // upload test instance
                 getVersionNumberForVC(newTest);
                 test.putAll(newTest);
-                testInstanceUploader.upload(testset, xmlResultEntity);
+                testInstanceUploader.upload(testset, xmlResultEntity, attachment);
             }
         }
     }

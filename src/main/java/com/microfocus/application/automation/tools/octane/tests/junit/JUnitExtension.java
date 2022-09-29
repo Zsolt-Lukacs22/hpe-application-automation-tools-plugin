@@ -31,6 +31,7 @@ package com.microfocus.application.automation.tools.octane.tests.junit;
 import com.google.inject.Inject;
 import com.hp.octane.integrations.OctaneClient;
 import com.hp.octane.integrations.OctaneSDK;
+import com.microfocus.application.automation.tools.JenkinsUtils;
 import com.microfocus.application.automation.tools.octane.actions.cucumber.CucumberTestResultsAction;
 import com.microfocus.application.automation.tools.octane.configuration.SDKBasedLoggerProvider;
 import com.microfocus.application.automation.tools.octane.executor.CheckOutSubDirEnvContributor;
@@ -44,15 +45,13 @@ import com.microfocus.application.automation.tools.octane.tests.detection.MFTool
 import com.microfocus.application.automation.tools.octane.tests.detection.ResultFields;
 import com.microfocus.application.automation.tools.octane.tests.detection.ResultFieldsDetectionService;
 import com.microfocus.application.automation.tools.octane.tests.impl.ObjectStreamIterator;
+import com.microfocus.application.automation.tools.settings.RunnerMiscSettingsGlobalConfiguration;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.maven.MavenBuild;
 import hudson.maven.MavenModule;
 import hudson.maven.MavenModuleSetBuild;
-import hudson.model.ParameterValue;
-import hudson.model.ParametersAction;
-import hudson.model.Run;
-import hudson.model.StringParameterValue;
+import hudson.model.*;
 import hudson.remoting.VirtualChannel;
 import hudson.tasks.test.AbstractTestResultAction;
 import org.apache.commons.lang.StringUtils;
@@ -103,32 +102,21 @@ public class JUnitExtension extends OctaneTestsExtension {
 		logger.debug("Collecting JUnit results");
 
 		FilePath resultFile = new FilePath(run.getRootDir()).child(JUNIT_RESULT_XML);
+		boolean getResultsOnController = !RunnerMiscSettingsGlobalConfiguration.getInstance().isAgentToControllerEnabled();
+		FilePath workspace = BuildHandlerUtils.getWorkspace(run);
 		if (resultFile.exists()) {
 			logger.debug("JUnit result report found");
-			FilePath workspace = BuildHandlerUtils.getWorkspace(run);
 			if (workspace == null) {
 				logger.error("Received null workspace : " + run);
 				return null;
 			}
 
-			boolean getResultsOnMaster = false;
+
 			HPRunnerType hpRunnerType = MFToolsDetectionExtension.getRunnerType(run);
 			if(hpRunnerType.equals(HPRunnerType.UFT) || hpRunnerType.equals(HPRunnerType.UFT_MBT)){
-				getResultsOnMaster = true;
+				getResultsOnController = true;
 			}
-			FilePath filePath;
-			if (getResultsOnMaster) {
-				filePath = (new GetJUnitTestResults(run, hpRunnerType, Collections.singletonList(resultFile), false, jenkinsRootUrl)).invoke(null, null);
-			} else {
-				try {
-					filePath = workspace.act(new GetJUnitTestResults(run, hpRunnerType, Collections.singletonList(resultFile), false, jenkinsRootUrl));
-				} catch (Exception e) {
-					//on some docker/kubernetis environments - workspace folder might not be available after job is finished
-					logger.error("Failed to get test results from workspace, trying to get test results from master : " + e.getMessage(), e);
-					filePath = (new GetJUnitTestResults(run, hpRunnerType, Collections.singletonList(resultFile), false, jenkinsRootUrl)).invoke(null, null);
-				}
-			}
-
+			FilePath filePath = getTestResultsFromWorkspace(run, jenkinsRootUrl, getResultsOnController, workspace, Collections.singletonList(resultFile),hpRunnerType);
 			ResultFields detectedFields = getResultFields(run);
 			return new TestResultContainer(new ObjectStreamIterator<>(filePath), detectedFields);
 		} else {
@@ -150,13 +138,41 @@ public class JUnitExtension extends OctaneTestsExtension {
 				}
 				if (!resultFiles.isEmpty()) {
 					ResultFields detectedFields = getResultFields(run);
-					FilePath filePath = BuildHandlerUtils.getWorkspace(run).act(new GetJUnitTestResults(run, HPRunnerType.NONE, resultFiles, false, jenkinsRootUrl));
+					FilePath filePath = getTestResultsFromWorkspace(run, jenkinsRootUrl, getResultsOnController, workspace, resultFiles,HPRunnerType.NONE);
 					return new TestResultContainer(new ObjectStreamIterator<>(filePath), detectedFields);
 				}
 			}
 			logger.debug("No JUnit result report found");
 			return null;
 		}
+	}
+
+	private FilePath getTestResultsFromWorkspace(Run<?, ?> run, String jenkinsRootUrl, boolean getResultsOnController, FilePath workspace, List<FilePath> resultFiles,HPRunnerType runnerType) throws IOException, InterruptedException {
+		FilePath filePath;
+		try {
+			if (getResultsOnController) {
+				logger.info("Get results from controller");
+				filePath = (new GetJUnitTestResults(run, runnerType, resultFiles, false, jenkinsRootUrl)).invoke(null, null);
+			} else {
+				logger.info("Get results from agent");
+				filePath = workspace.act(new GetJUnitTestResults(run, runnerType, resultFiles, false, jenkinsRootUrl));
+			}
+		}catch (Exception e){
+			//if failed on controller/agent retrying from agent/controller
+			logger.error(String.format("Failed to get test results from %s, trying to get test results from %s : %s",
+						getResultsOnController ? "controller" : "agent",
+						getResultsOnController ? "agent" : "controller",
+						e.getMessage()),
+					e);
+			if (getResultsOnController) {
+				logger.info("Get results from agent");
+				filePath = workspace.act(new GetJUnitTestResults(run, runnerType, resultFiles, false, jenkinsRootUrl));
+			} else {
+				logger.info("Get results from controller");
+				filePath = (new GetJUnitTestResults(run, runnerType, resultFiles, false, jenkinsRootUrl)).invoke(null, null);
+			}
+		}
+		return filePath;
 	}
 
 	private ResultFields getResultFields(Run<?, ?> build) throws InterruptedException {
@@ -182,6 +198,7 @@ public class JUnitExtension extends OctaneTestsExtension {
 		//this class is run on master and JUnitXmlIterator is runnning on slave.
 		//this object pass some master2slave data
 		private Object additionalContext;
+		private String nodeName;
 
 		public GetJUnitTestResults(Run<?, ?> build, HPRunnerType hpRunnerType, List<FilePath> reports, boolean stripPackageAndClass, String jenkinsRootUrl) throws IOException, InterruptedException {
 			this.reports = reports;
@@ -209,9 +226,11 @@ public class JUnitExtension extends OctaneTestsExtension {
 
 
 			if (HPRunnerType.UFT.equals(hpRunnerType) || HPRunnerType.UFT_MBT.equals(hpRunnerType)) {
-
+				Node node = JenkinsUtils.getCurrentNode(workspace);
+				this.nodeName = node != null && !node.getNodeName().isEmpty() ? node.getNodeName() : "";
 				//extract folder names for created tests
-				String reportFolder = buildRootDir + "/archive/UFTReport";
+				String reportFolder = buildRootDir + "/archive/UFTReport" +
+						(StringUtils.isNotEmpty(this.nodeName) ? "/" + this.nodeName : "");
 				List<String> testFolderNames = new ArrayList<>();
 				testFolderNames.add(build.getRootDir().getAbsolutePath());
 				File reportFolderFile = new File(reportFolder);
@@ -269,7 +288,7 @@ public class JUnitExtension extends OctaneTestsExtension {
 
 			try {
 				for (FilePath report : reports) {
-					JUnitXmlIterator iterator = new JUnitXmlIterator(report.read(), moduleDetection, workspace, sharedCheckOutDirectory, jobName, buildId, buildStarted, stripPackageAndClass, hpRunnerType, jenkinsRootUrl, additionalContext,testParserRegEx, octaneSupportsSteps);
+					JUnitXmlIterator iterator = new JUnitXmlIterator(report.read(), moduleDetection, workspace, sharedCheckOutDirectory, jobName, buildId, buildStarted, stripPackageAndClass, hpRunnerType, jenkinsRootUrl, additionalContext,testParserRegEx, octaneSupportsSteps,nodeName);
 					while (iterator.hasNext()) {
 						oos.writeObject(iterator.next());
 					}

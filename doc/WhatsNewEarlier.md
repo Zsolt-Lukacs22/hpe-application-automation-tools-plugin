@@ -5,27 +5,84 @@ This page shows a history of the enhancements made to the Micro Focus Applicatio
 
 See the [Changelog ](https://wiki.jenkins.io/display/JENKINS/Changelog)for information about beta versions and recent patches.
 
-[What&#39;s New in version 7.2](#what&#39;s-new-in-version-7&#46;2)
+[What&#39;s New in version 7.4 ](#what&#39;s-new-in-version-7&#46;4)
 
-[What&#39;s New in version 7.1](#what&#39;s-new-in-version-7&#46;1)
+[What&#39;s New in version 7.3 ](#what&#39;s-new-in-version-7&#46;3)
 
-[What&#39;s New in version 7.0](#what&#39;s-new-in-version-7&#46;0)
+[What&#39;s New in version 7.2 ](#what&#39;s-new-in-version-7&#46;2)
 
-[What&#39;s New in version 6.9](#what&#39;s-new-in-version-6&#46;9)
+[What&#39;s New in version 7.1 ](#what&#39;s-new-in-version-7&#46;1)
 
-[What&#39;s New in versions 6.7 and 6.8](#what&#39;s-new-in-versions-6&#46;7-and-6&#39;8)
+[What&#39;s New in version 7.0 ](#what&#39;s-new-in-version-7&#46;0)
 
-[What&#39;s New in version 6.6](#what&#39;s-new-in-version-6.6)
+[What&#39;s New in version 6.9 ](#what&#39;s-new-in-version-6&#46;9)
 
-[What&#39;s New in version 6.5](#what&#39;s-new-in-version-6.5)
+[What&#39;s New in versions 6.7 and 6.8 ](#what&#39;s-new-in-versions-6&#46;7-and-6&#39;8)
 
-[What&#39;s New in version 6.4](#what&#39;s-new-in-version-6.4)
+[What&#39;s New in version 6.6 ](#what&#39;s-new-in-version-6.6)
 
-[What&#39;s New in version 6.3](#what&#39;s-new-in-version-6.3)
+[What&#39;s New in version 6.5 ](#what&#39;s-new-in-version-6.5)
 
-[What&#39;s New in version 6.0](#what&#39;s-new-in-version-6.0)
+[What&#39;s New in version 6.4 ](#what&#39;s-new-in-version-6.4)
 
-[What&#39;s New in version 5.9](#what&#39;s-new-in-version-5.9)
+[What&#39;s New in version 6.3 ](#what&#39;s-new-in-version-6.3)
+
+[What&#39;s New in version 6.0 ](#what&#39;s-new-in-version-6.0)
+
+[What&#39;s New in version 5.9 ](#what&#39;s-new-in-version-5.9)
+
+## What&#39;s New in version 7&#46;4
+
+Version 7.4 introduced the following enhancements:
+
+**ALM Octane**
+
+- Added the **Default branches** setting. This allows ALM Octane to enable the selection of parameters for multi-branch CI jobs used in the *Run CI Job* auto action. This change allows ALM Octane to validate the branch name used for the multi-branch CI job.
+- The log4j version was updated from 2.17.1 to 2.17.2.
+- Defect fixes.
+
+**UFT One**
+
+- Enhanced data security in UFT One’s Jenkins tasks.  A public-private key pair is used to encrypt and decrypt sensitive data on each execution node. 
+-	Access Key authentication support for UFT Mobile (supported from UFT One 2021 R1 Patch1)
+-	Support for the Java 11 JAXB dependency.
+-	Ability to specify the UFT Report timestamp format, by defining a date format on the Jenkins configuration page. (Manage Jenkins > Configure System, Run Result (UFT Report) timestamp format string section).
+-	Console Output text encoding configuration on the job level.
+-	Layout improvements. 
+
+For information about enhancements introduced in previous versions, see [What's new in earlier versions](WhatsNewEarlier.md). 
+
+## Release notes
+
+Pipeline scripts are empty in the script editor from within job configurations. You can view scripts in the config.xml file for each job. This issue does not affect the functionality of the plugin. **Note:** This limitation only applies to version 7.4. A fix was provided in version 7.4.1 Beta.
+
+## What&#39;s New in version 7&#46;3
+
+Version 7.3 introduced the following enhancements:
+
+**ALM Octane**
+
+- Code improvements for MBT, model-based testing.
+- Support for Codeless text executions.
+- Defect fixes.
+
+**Model-Based Testing**
+
+- Code improvements.
+- Support for Windows and Linux upper case/lower case strings.
+- Defect fixes.
+
+**UFT One**
+
+- Partial test result reporting for aborted Jenkins jobs, for file system executions. When a Jenkins job execution is aborted or cancelled, all the test results until that point, will be available in the build.
+- Improved parameter configuration for UFT One tests using a new parameter table, for file system and ALM execution. You can now add different types of parameters, for both GUI and API tests. 
+- Improvements in the re-run option for failed scenarios in file system executions, where tests finished with a Warning status.
+- Improved reporting for UFT One tests with same name, but different locations. 
+- Enhancements to secure log4j issues.
+
+**Service Virtualization**
+
+- Ability to switch virtual services to OFFLINE mode.
 
 ## What&#39;s New in version 7&#46;2
 
