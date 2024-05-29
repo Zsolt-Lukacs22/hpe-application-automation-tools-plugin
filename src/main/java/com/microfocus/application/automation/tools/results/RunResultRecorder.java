@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -46,15 +50,14 @@ import hudson.matrix.MatrixAggregatable;
 import hudson.matrix.MatrixAggregator;
 import hudson.matrix.MatrixBuild;
 import hudson.model.*;
-import hudson.remoting.Channel;
 import hudson.remoting.VirtualChannel;
-import hudson.slaves.SlaveComputer;
 import hudson.tasks.*;
 import hudson.tasks.junit.*;
 import hudson.tasks.test.TestResultAggregator;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.filefilter.AgeFileFilter;
 import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
@@ -70,6 +73,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import javax.annotation.Nonnull;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -224,6 +228,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 			JUnitResultArchiver jUnitResultArchiver = new JUnitResultArchiver(resultFile);
 			jUnitResultArchiver.setKeepLongStdio(true);
 			jUnitResultArchiver.setAllowEmptyResults(true);
+			jUnitResultArchiver.setSkipMarkingBuildUnstable(true);
 			jUnitResultArchiver.perform(build, workspace, launcher, listener);
 		}
 
@@ -233,7 +238,6 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 			listener.getLogger().println("RunResultRecorder: didn't find any test results to record");
 			return;
 		}
-
 
 		TestResult result = tempAction.getResult();
 
@@ -383,6 +387,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 			List<ReportMetaData> ReportInfoToCollect = new ArrayList<ReportMetaData>();
 
 			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			dbFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
 
 			Document doc = dBuilder.parse(resultsFile.read());
@@ -448,7 +453,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 					}
 				}
 			} else { // UFT Test
-				boolean reportIsHtml = false;
+				boolean isHtmlReport = false;
 				NodeList testCasesNodes = ((Element) testSuiteNode).getElementsByTagName("testcase");
 
 				// to keep counting how many times this TestName have appeared, used for counting the correct count of appearance
@@ -525,7 +530,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 								isParallelRunnerReport ? PARALLEL_RESULT_FILE : "run_results.html");
 						ReportMetaData reportMetaData = new ReportMetaData();
 						if (htmlReport.exists()) {
-							reportIsHtml = true;
+							isHtmlReport = true;
 							String htmlReportDir = reportFolder.getRemote();
 							reportMetaData.setFolderPath(htmlReportDir);
 							reportMetaData.setIsHtmlReport(true);
@@ -549,25 +554,23 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 								FilePath testFolder = new FilePath(channel, testFolderPath);
 								String zipFileName = getUniqueZipFileNameInFolder(zipFileNames, (StringUtils.isBlank(nodeName) ? "" : nodeName + "_") + testFolder.getName(), "UFT");
 								zipFileNames.add(zipFileName);
-								ByteArrayOutputStream outstr = new ByteArrayOutputStream();
+								try (ByteArrayOutputStream outStr = new ByteArrayOutputStream()) {
 
-								// don't use FileFilter for zip, or it will cause bug when files are on slave
-								reportFolder.zip(outstr);
+									// don't use FileFilter for zip, or it will cause bug when files are on slave
+									reportFolder.zip(outStr);
 
-								/*
-								 * I did't use copyRecursiveTo or copyFrom due to bug in
-								 * jekins:https://issues.jenkins-ci.org/browse /JENKINS-9189 //(which is
-								 * cleaimed to have been fixed, but not. So I zip the folder to stream and copy
-								 * it to the master.
-								 */
+									/*
+									 * I did't use copyRecursiveTo or copyFrom due to bug in
+									 * jekins:https://issues.jenkins-ci.org/browse /JENKINS-9189 //(which is
+									 * cleaimed to have been fixed, but not. So I zip the folder to stream and copy
+									 * it to the master.
+									 */
 
-								ByteArrayInputStream instr = new ByteArrayInputStream(outstr.toByteArray());
-
-								FilePath archivedFile = new FilePath(new FilePath(artifactsDir), zipFileName);
-								archivedFile.copyFrom(instr);
-
-								outstr.close();
-								instr.close();
+									try (InputStream instr = new ByteArrayInputStream(outStr.toByteArray())) {
+										FilePath archivedFile = new FilePath(new FilePath(artifactsDir), zipFileName);
+										archivedFile.copyFrom(instr);
+									}
+								}
 
 								// add to Report list
 								String zipFileUrlName = "artifact/" + zipFileName;
@@ -581,7 +584,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 					}
 				}
 
-				if (reportIsHtml && !ReportInfoToCollect.isEmpty()) {
+				if (isHtmlReport && !ReportInfoToCollect.isEmpty()) {
 					collectAndPrepareHtmlReports(build, listener, ReportInfoToCollect, runWorkspace, nodeName);
 				}
 
@@ -616,6 +619,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 		DocumentBuilder builder = null;
 		try {
+			dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 			builder = dbf.newDocumentBuilder();
 		} catch (ParserConfigurationException e) {
 			_logger.error("Failed creating xml doc report: " + e);
@@ -663,6 +667,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 		document.normalize();
 
 		TransformerFactory tFactory = TransformerFactory.newInstance();
+		tFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 		Transformer transformer = tFactory.newTransformer();
 		transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
 		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
@@ -672,6 +677,23 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 		StreamResult result = new StreamResult(pw);
 		transformer.transform(source, result);
 
+	}
+
+	private void renamePath(FilePath src, FilePath dest, TaskListener listener, int idxOfRetry) {
+		try {
+			if (idxOfRetry > 5) {
+				listener.getLogger().println("Failed to rename report path [" + src.getRemote() + "] as [" + dest.getRemote() + "] after 5 retries.");
+				return;
+			}
+			Thread.sleep(1500);
+			src.renameTo(dest);
+			if (idxOfRetry > 0) {
+				String msg = String.format("Successfully renamed report path as [%s] after %d %s.", dest.getRemote(), idxOfRetry, (idxOfRetry == 1 ? "retry" : "retries"));
+				listener.getLogger().println(msg);
+			}
+		} catch(Exception e) {
+			renamePath(src, dest, listener, ++idxOfRetry);
+		}
 	}
 
 	private Boolean collectAndPrepareHtmlReports(Run build, TaskListener listener, List<ReportMetaData> htmlReportsInfo, FilePath runWorkspace, String nodeName) {
@@ -707,29 +729,23 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 				// archive and copy to the subdirs of master
 				archiveAndCopyReportFolder(runWorkspace, reportDir, htmlReportDir);
 				// zip copy and unzip
-				// now,all the files are in the C:\Program Files (x86)
-				// \Jenkins\jobs\testAction\builds\35\archive\UFTReport\Report
+				// now,all the files are in the C:\Program Files (x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\Report**
 				// we need to rename the above path to targetPath.
-				// So at last we got files in C:\Program Files (x86)
-				// \Jenkins\jobs\testAction\builds\35\archive\UFTReport\GuiTest
-				String unzippedFileName = org.apache.commons.io.FilenameUtils.getName(htmlReportDir);
+				// So at last we got files in C:\Program Files (x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\GuiTest\Result
+				String unzippedFileName = FilenameUtils.getName(htmlReportDir);
 
 				FilePath rootTarget = new FilePath(reportDir);
-				FilePath targetPath = new FilePath(rootTarget, RESULT); // target path is something like "C:\Program Files
+				FilePath targetPath = new FilePath(rootTarget, RESULT);
 				if(targetPath.exists()){
 					continue;
 				}
-				// (x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\GuiTest1"
-				FilePath unzippedFolderPath = new FilePath(rootTarget, unzippedFileName); // C:\Program Files
+				// C:\Program Files (x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\GuiTest1"
+				FilePath unzippedFolderPath = new FilePath(rootTarget, unzippedFileName);
 
-				// (x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\Report
-				// //C:\Program Files\(x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\Report
-				//rename unzippedFolderPath to targetPath
-				try {
-					unzippedFolderPath.renameTo(targetPath);
-				} catch(Exception e){
-					listener.getLogger().println("Cannot rename to target path.");
-				}
+				// C:\Program Files\(x86)\Jenkins\jobs\testAction\builds\35\archive\UFTReport\Report
+				// rename unzippedFolderPath to targetPath
+				renamePath(unzippedFolderPath, targetPath, listener, 0);
+
 				// fill in the urlName of this report. we need a network path not a FS path
 				String resourceUrl = htmlReportInfo.getResourceURL();
 
@@ -759,26 +775,24 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 	private void archiveAndCopyReportFolder(FilePath runWorkspace, File reportDir, String htmlReportDir) throws IOException, InterruptedException {
 		FilePath rootTarget = new FilePath(reportDir);
 
-		FilePath source  = new FilePath(runWorkspace, htmlReportDir);
+		FilePath source = new FilePath(runWorkspace, htmlReportDir);
 
-		ByteArrayOutputStream outStr = new ByteArrayOutputStream();
-		source.zip(outStr);
-
-		ByteArrayInputStream inStr= new ByteArrayInputStream(outStr.toByteArray());
 		String zipFileName = "UFT_Report_HTML_tmp.zip";
 		FilePath archivedFile = new FilePath(rootTarget, zipFileName);
 
-		//copy from slave to master
-		archivedFile.copyFrom(inStr);
+		try (ByteArrayOutputStream outStr = new ByteArrayOutputStream()) {
+			source.zip(outStr);
 
-		// end zip copy and unzip
-		archivedFile.unzip(rootTarget);
+			try (ByteArrayInputStream inStr = new ByteArrayInputStream(outStr.toByteArray())) {
+				//copy from slave to master
+				archivedFile.copyFrom(inStr);
+			}
+			// end zip copy and unzip
+			archivedFile.unzip(rootTarget);
 
-		//delete temporary archive UFT_Report_HTML_tmp.zip
-		archivedFile.delete();
-
-		outStr.close();
-		inStr.close();
+			//delete temporary archive UFT_Report_HTML_tmp.zip
+			archivedFile.delete();
+		}
 	}
 
 	/**
@@ -1243,6 +1257,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 		JobLrScenarioResult jobLrScenarioResult = new JobLrScenarioResult(slaFilePath.getBaseName());
 
 		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+		dbFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 		DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
 
 		Document doc = dBuilder.parse(slaFilePath.read());
@@ -1438,7 +1453,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 			throws InterruptedException, IOException {
 
 		runReportList = new ArrayList<FilePath>();
-		final List<String> mergedResultNames = new ArrayList<String>();
+		final Set<String> mergedResultNames = new HashSet<String>();
 		final List<String> almResultNames = new ArrayList<String>();
 		final List<String> fileSystemResultNames = new ArrayList<String>();
 		final List<String> almSSEResultNames = new ArrayList<String>();
@@ -1517,7 +1532,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 			return;
 		}
 
-		recordRunResults(build, workspace, launcher, listener, mergedResultNames, fileSystemResultNames);
+		recordRunResults(build, workspace, launcher, listener, new ArrayList<>(mergedResultNames), fileSystemResultNames);
 		return;
 	}
 
@@ -1575,7 +1590,7 @@ public class RunResultRecorder extends Recorder implements Serializable, MatrixA
 		@Override
 		public String getDisplayName() {
 
-			return "Publish Micro Focus tests result";
+			return "Publish OpenText tests result";
 		}
 
 		@Override

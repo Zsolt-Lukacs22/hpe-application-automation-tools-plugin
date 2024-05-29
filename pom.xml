@@ -1,30 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Certain versions of software and/or documents ("Material") accessible here may contain branding from
-  ~ Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
-  ~ the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
-  ~ and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
-  ~ marks are the property of their respective owners.
-  ~ __________________________________________________________________
-  ~ MIT License
-  ~
-  ~ (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
-  ~
-  ~ Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-  ~ documentation files (the "Software"), to deal in the Software without restriction, including without limitation
-  ~ the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-  ~ and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-  ~
-  ~ The above copyright notice and this permission notice shall be included in all copies or
-  ~ substantial portions of the Software.
-  ~
-  ~ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-  ~ THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  ~ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-  ~ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  ~ SOFTWARE.
-  ~
-  ~ ___________________________________________________________________
+ ~ Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ ~ This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ ~ Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
+ ~ __________________________________________________________________
+ ~ MIT License
+ ~
+ ~ Copyright 2012-2023 Open Text
+ ~
+ ~ The only warranties for products and services of Open Text and
+ ~ its affiliates and licensors ("Open Text") are as may be set forth
+ ~ in the express warranty statements accompanying such products and services.
+ ~ Nothing herein should be construed as constituting an additional warranty.
+ ~ Open Text shall not be liable for technical or editorial errors or
+ ~ omissions contained herein. The information contained herein is subject
+ ~ to change without notice.
+ ~
+ ~ Except as specifically indicated otherwise, this document contains
+ ~ confidential information and a valid license is required for possession,
+ ~ use or copying. If this work is provided to the U.S. Government,
+ ~ consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ ~ Computer Software Documentation, and Technical Data for Commercial Items are
+ ~ licensed to the U.S. Government under vendor's standard commercial license.
+ ~
+ ~ Unless required by applicable law or agreed to in writing, software
+ ~ distributed under the License is distributed on an "AS IS" BASIS,
+ ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ ~ See the License for the specific language governing permissions and
+ ~ limitations under the License.
+ ~ ___________________________________________________________________
   -->
 
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
@@ -39,8 +43,8 @@
 	<artifactId>hp-application-automation-tools-plugin</artifactId>
 	<version>${revision}${changelist}</version>
 	<packaging>hpi</packaging>
-	<name>Micro Focus Application Automation Tools</name>
-	<description>The plugin integrates Jenkins with the following Micro Focus products - Service Virtualization,
+	<name>OpenText Application Automation Tools</name>
+	<description>The plugin integrates Jenkins with the following OpenText products - Service Virtualization,
 		LoadRunner, LoadRunner Enterprise, Unified Functional Testing, QuickTest Professional, Service Test, Unified Functional Testing Mobile,
 		Application Lifecycle Management and Application Lifecycle Management Octane.
 	</description>
@@ -55,13 +59,13 @@
 	</licenses>
 
 	<properties>
-		<revision>7.5.2-beta</revision>
+		<revision>24.1.2-beta</revision>
 		<changelist>-SNAPSHOT</changelist>
 		<gitHubRepo>jenkinsci/${project.artifactId}</gitHubRepo>
 		<concurrency>1</concurrency>
 		<msbuild.exe>C:\Windows\Microsoft.NET\Framework\v4.0.30319\msbuild.exe</msbuild.exe>
 		<msbuild.configuration>Release</msbuild.configuration>
-		<jenkins.version>2.289.3</jenkins.version>
+		<jenkins.version>2.346.1</jenkins.version>
 		<maven.exec.skip>false</maven.exec.skip>
 		<java.level>8</java.level>
 		<jenkins-test-harness.version>2.55</jenkins-test-harness.version> <!-- TODO newer versions require debugging an issue with open file handles -->
@@ -93,8 +97,8 @@
 	</issueManagement>
 
 	<organization>
-		<name>Micro Focus</name>
-		<url>http://www.microfocus.com</url>
+		<name>OpenText</name>
+		<url>https://www.opentext.com/</url>
 	</organization>
 
 	<developers>
@@ -361,41 +365,31 @@
 			<artifactId>apache-httpcomponents-client-4-api</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.jayway.jsonpath</groupId>
-			<artifactId>json-path</artifactId>
-			<version>2.7.0</version>
-			<exclusions>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>org.ow2.asm</groupId>
-					<artifactId>asm</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-api</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-jdk14</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>net.minidev</groupId>
+			<artifactId>json-smart</artifactId>
+			<version>2.5.1</version>
 		</dependency>
-
+		<dependency>
+			<groupId>org.apache.ivy</groupId>
+			<artifactId>ivy</artifactId>
+			<version>2.5.2</version>
+		</dependency>
 		<!--workflow-aggregator-plugin : https://github.com/jenkinsci/workflow-aggregator-plugin
 		cloudbees doesn't support 2.6 therefore it is added manually -->
 		<dependency>
 			<groupId>org.jenkins-ci.plugins.workflow</groupId>
 			<artifactId>workflow-step-api</artifactId>
+			<version>625.vd896b_f445a_f8</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins.workflow</groupId>
 			<artifactId>workflow-api</artifactId>
+			<version>1144.v61c3180fa_03f</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins.workflow</groupId>
 			<artifactId>workflow-support</artifactId>
+			<version>813.vb_d7c3d2984a_0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins.workflow</groupId>
@@ -404,6 +398,7 @@
 		<dependency>
 			<groupId>org.jenkins-ci.plugins.workflow</groupId>
 			<artifactId>workflow-job</artifactId>
+			<version>1145.v7f2433caa07f</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins.workflow</groupId>
@@ -424,19 +419,28 @@
 		<dependency>
 			<groupId>org.jenkinsci.plugins</groupId>
 			<artifactId>pipeline-model-definition</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.apache.ivy</groupId>
+					<artifactId>ivy</artifactId>
+				</exclusion>
+			</exclusions>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins</groupId>
 			<artifactId>structs</artifactId>
+			<version>308.v852b473a2b8c</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins</groupId>
 			<artifactId>scm-api</artifactId>
+			<version>602.v6a_81757a_31d2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jenkins-ci.plugins</groupId>
 			<artifactId>script-security</artifactId>
+			<version>1158.v7c1b_73a_69a_08</version>
 			<scope>test</scope>
 		</dependency>
 		<!--workflow-aggregator-plugin-->
@@ -454,7 +458,7 @@
 		<dependency>
 			<groupId>com.microfocus.sv</groupId>
 			<artifactId>SVConfigurator</artifactId>
-			<version>5.5</version>
+			<version>5.8</version>
 			<exclusions>
 				<!-- Provided by Jenkins core -->
 				<exclusion>
@@ -481,15 +485,62 @@
 		<dependency>
 			<groupId>org.jenkins-ci.plugins</groupId>
 			<artifactId>junit</artifactId>
+			<version>1119.1121.vc43d0fc45561</version>
+
+			<exclusions>
+				<exclusion>
+					<groupId>io.jenkins.plugins</groupId>
+					<artifactId>font-awesome-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>io.jenkins.plugins</groupId>
+					<artifactId>echarts-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>io.jenkins.plugins</groupId>
+					<artifactId>plugin-util-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>io.jenkins.plugins</groupId>
+					<artifactId>checks-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.jenkins-ci.plugins</groupId>
+					<artifactId>display-url-api</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
-
-
+		<dependency>
+			<groupId>io.jenkins.plugins</groupId>
+			<artifactId>font-awesome-api</artifactId>
+			<version>6.0.0-1</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jenkins.plugins</groupId>
+			<artifactId>echarts-api</artifactId>
+			<version>5.3.2-1</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jenkins.plugins</groupId>
+			<artifactId>plugin-util-api</artifactId>
+			<version>2.16.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jenkins.plugins</groupId>
+			<artifactId>checks-api</artifactId>
+			<version>1.7.4</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jenkins-ci.plugins</groupId>
+			<artifactId>display-url-api</artifactId>
+			<version>2.3.6</version>
+		</dependency>
 		<!-- Octane jenkins plugins -->
 
 		<dependency>
 			<artifactId>integrations-sdk</artifactId>
 			<groupId>com.hpe.adm.octane.ciplugins</groupId>
-			<version>2.7.6.0</version>
+			<version>2.24.1.6</version>
 		</dependency>
 
 		<!--BUILDER providers integration-->
@@ -508,7 +559,7 @@
 		<dependency>
 			<artifactId>maven-plugin</artifactId>
 			<groupId>org.jenkins-ci.main</groupId>
-			<version>3.15.1</version>
+			<version>3.19</version>
 		</dependency>
 		<dependency>
 			<artifactId>matrix-project</artifactId>
@@ -530,7 +581,7 @@
 		<dependency>
 			<groupId>org.jenkins-ci.plugins</groupId>
 			<artifactId>subversion</artifactId>
-			<version>2.15.1</version> <!-- TODO use version from BOM when possible -->
+			<version>2.15.4</version> <!-- TODO use version from BOM when possible -->
 			<optional>true</optional>
 		</dependency>
 
@@ -558,7 +609,7 @@
 		<dependency>
 			<artifactId>token-macro</artifactId>
 			<groupId>org.jenkins-ci.plugins</groupId>
-			<version>267.vcdaea6462991</version> <!-- TODO use version from BOM when possible -->
+			<version>293.v283932a_0a_b_49</version> <!-- TODO use version from BOM when possible -->
 			<optional>true</optional>
 		</dependency>
 		<dependency>
@@ -570,6 +621,7 @@
 		<dependency>
 			<groupId>org.jenkins-ci.plugins</groupId>
 			<artifactId>mailer</artifactId>
+			<version>414.vcc4c33714601</version>
 			<optional>true</optional>
 		</dependency>
 
@@ -584,72 +636,11 @@
 		<dependency>
 			<groupId>com.microfocus.adm.performancecenter</groupId>
 			<artifactId>plugins-common</artifactId>
-			<version>1.1.9</version>
+			<version>1.1.11</version>
 			<exclusions>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>commons-codec</groupId>
-					<artifactId>commons-codec</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>commons-httpclient</groupId>
-					<artifactId>commons-httpclient</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>commons-io</groupId>
-					<artifactId>commons-io</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>commons-lang</groupId>
-					<artifactId>commons-lang</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>commons-logging</groupId>
-					<artifactId>commons-logging</artifactId>
-				</exclusion>
-				<!-- Provided by jackson2-api plugin -->
 				<exclusion>
 					<groupId>com.fasterxml.jackson.core</groupId>
 					<artifactId>jackson-databind</artifactId>
-				</exclusion>
-				<!-- Provided by jackson2-api and snakeyaml-api plugins -->
-				<exclusion>
-					<groupId>com.fasterxml.jackson.dataformat</groupId>
-					<artifactId>jackson-dataformat-yaml</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>com.thoughtworks.xstream</groupId>
-					<artifactId>xstream</artifactId>
-				</exclusion>
-				<!-- Provided by javax-activation-api plugin -->
-				<exclusion>
-					<groupId>javax.activation</groupId>
-					<artifactId>activation</artifactId>
-				</exclusion>
-				<!-- Provided by jaxb-api plugin -->
-				<exclusion>
-					<groupId>javax.xml.bind</groupId>
-					<artifactId>jaxb-api</artifactId>
-				</exclusion>
-				<!-- Provided by apache-httpcomponents-client-4-api plugin -->
-				<exclusion>
-					<groupId>org.apache.httpcomponents</groupId>
-					<artifactId>httpclient</artifactId>
-				</exclusion>
-				<!-- Provided by jaxb-api plugin -->
-				<exclusion>
-					<groupId>org.glassfish.jaxb</groupId>
-					<artifactId>jaxb-runtime</artifactId>
-				</exclusion>
-				<!-- Provided by Jenkins core -->
-				<exclusion>
-					<groupId>org.springframework</groupId>
-					<artifactId>spring-context</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>

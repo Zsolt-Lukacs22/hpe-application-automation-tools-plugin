@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -35,10 +39,12 @@ import com.microfocus.application.automation.tools.EncryptionUtils;
 import com.microfocus.application.automation.tools.Messages;
 import com.microfocus.application.automation.tools.lr.model.ScriptRTSSetModel;
 import com.microfocus.application.automation.tools.lr.model.SummaryDataLogModel;
+import com.microfocus.application.automation.tools.mc.Constants;
 import com.microfocus.application.automation.tools.mc.JobConfigurationProxy;
 import com.microfocus.application.automation.tools.model.*;
 import com.microfocus.application.automation.tools.settings.MCServerSettingsGlobalConfiguration;
 import com.microfocus.application.automation.tools.uft.model.SpecifyParametersModel;
+import com.microfocus.application.automation.tools.uft.model.UftRunAsUser;
 import com.microfocus.application.automation.tools.uft.model.UftSettingsModel;
 import com.microfocus.application.automation.tools.uft.utils.UftToolUtils;
 import hudson.*;
@@ -46,13 +52,13 @@ import hudson.model.*;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.util.FormValidation;
-import hudson.util.IOUtils;
 import hudson.util.Secret;
 import hudson.util.VariableResolver;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import net.minidev.json.JSONObject;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
@@ -60,14 +66,13 @@ import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.bind.JavaScriptMethod;
 
 import javax.annotation.Nonnull;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.Format;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Describes a regular jenkins build step from UFT or LR
@@ -77,10 +82,7 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
     private static final String LRANALYSIS_LAUNCHER_EXE = "LRAnalysisLauncher.exe";
 
     public static final String HP_TOOLS_LAUNCHER_EXE = "HpToolsLauncher.exe";
-
-    private String ResultFilename = "ApiResults.xml";
-
-    private String ParamFileName = "ApiRun.txt";
+    public static final String HP_TOOLS_LAUNCHER_EXE_CFG = "HpToolsLauncher.exe.config";
 
     private RunFromFileSystemModel runFromFileModel;
 
@@ -172,13 +174,13 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
                               String analysisTemplate, String mcServerName, AuthModel authModel, String fsDeviceId, String fsTargetLab, String fsManufacturerAndModel,
                               String fsOs, String fsAutActions, String fsLaunchAppName, String fsDevicesMetrics,
                               String fsInstrumented, String fsExtraApps, String fsJobId, ProxySettings proxySettings,
-                              boolean useSSL, boolean isParallelRunnerEnabled, String fsReportPath) {
+                              boolean useSSL, boolean isParallelRunnerEnabled, String fsReportPath, CloudBrowserModel cloudBrowserModel) {
         this.isParallelRunnerEnabled = isParallelRunnerEnabled;
         runFromFileModel = new RunFromFileSystemModel(fsTests, fsTimeout, fsUftRunMode, controllerPollingInterval,
                 perScenarioTimeOut, ignoreErrorStrings, displayController, analysisTemplate, mcServerName,
                 authModel, fsDeviceId, fsTargetLab, fsManufacturerAndModel, fsOs,
                 fsAutActions, fsLaunchAppName, fsDevicesMetrics, fsInstrumented, fsExtraApps, fsJobId,
-                proxySettings, useSSL, fsReportPath);
+                proxySettings, useSSL, fsReportPath, cloudBrowserModel);
     }
 
     /**
@@ -240,9 +242,9 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         if (mtbxContent.contains("${workspace}")) {
             mtbxContentUpdated = mtbxContent.replace("${workspace}", workspace.getRemote());
         }
-        InputStream in = IOUtils.toInputStream(mtbxContentUpdated, "UTF-8");
-        remoteFile.copyFrom(in);
-
+        try (InputStream in = IOUtils.toInputStream(mtbxContentUpdated, StandardCharsets.UTF_8)) {
+            remoteFile.copyFrom(in);
+        }
         return remoteFile.getRemote();
     }
 
@@ -600,6 +602,13 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         runFromFileModel.setFsReportPath(fsReportPath);
     }
 
+    public CloudBrowserModel getCloudBrowserModel() {
+        return runFromFileModel.getCloudBrowserModel();
+    }
+    @DataBoundSetter
+    public void setCloudBrowserModel(CloudBrowserModel cloudBrowserModel) {
+        runFromFileModel.setCloudBrowserModel(cloudBrowserModel);
+    }
     public String getOutEncoding() { return runFromFileModel.getOutEncoding(); }
 
     @DataBoundSetter
@@ -611,7 +620,7 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
      * @param useSSL the mc server name
      */
     @DataBoundSetter
-    public void setuseSSL(boolean useSSL) {
+    public void setUseSSL(boolean useSSL) {
         runFromFileModel.setUseSSL(useSSL);
     }
 
@@ -666,34 +675,40 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         JSONObject jobDetails;
         String mcServerUrl;
         // now merge them into one list
-        Properties mergedProperties = new Properties();
+        Properties mergedProps = new Properties();
         if (mcServerSettingsModel != null) {
             mcServerUrl = mcServerSettingsModel.getProperties().getProperty("MobileHostAddress");
             jobDetails = runFromFileModel.getJobDetails(mcServerUrl);
 
-            mergedProperties.setProperty("mobileinfo", jobDetails != null ? jobDetails.toJSONString() : "");
-            mergedProperties.setProperty("MobileHostAddress", mcServerUrl);
+            mergedProps.setProperty("mobileinfo", jobDetails != null ? jobDetails.toJSONString() : "");
+            mergedProps.setProperty("MobileHostAddress", mcServerUrl);
+
+            CloudBrowserModel cbm = getCloudBrowserModel();
+            if (cbm != null) {
+                String cb = String.format("\"url=%s;os=%s;type=%s;version=%s;region=%s\"", cbm.getUrl(), cbm.getOs(), cbm.getType(), cbm.getVersion(), cbm.getRegion());
+                mergedProps.setProperty("cloudBrowser", cb);
+            }
         }
 
-        // check whether Mobile authentification info is given or not
-        String pwd = runFromFileModel.getMcPassword();
-        String tok = runFromFileModel.getMcExecToken();
-        if (pwd != null && StringUtils.isNotBlank(Secret.fromString(pwd).getPlainText())) {
+        // check whether Mobile authentication info is given or not
+        String plainTextPwd = runFromFileModel.getMcPassword() == null ? null : Secret.fromString(runFromFileModel.getMcPassword()).getPlainText();
+        String plainTextToken = runFromFileModel.getMcExecToken() == null ? null : Secret.fromString(runFromFileModel.getMcExecToken()).getPlainText();
+        if (StringUtils.isNotBlank(plainTextPwd)) {
             try {
-                String encPassword = EncryptionUtils.encrypt(Secret.fromString(pwd).getPlainText(), currNode);
-                mergedProperties.put("MobilePassword", encPassword);
+                String encPassword = EncryptionUtils.encrypt(plainTextPwd, currNode);
+                mergedProps.put("MobilePassword", encPassword);
             } catch (Exception e) {
                 build.setResult(Result.FAILURE);
-                listener.fatalError("Problem in UFT Mobile password encryption: " + e.getMessage() + ".");
+                listener.fatalError("Problem in Digital Lab password encryption: " + e.getMessage() + ".");
                 return;
             }
-        } else if (tok != null && StringUtils.isNotBlank(Secret.fromString(tok).getPlainText())) {
+        } else if (StringUtils.isNotBlank(plainTextToken)) {
             try {
-                String encToken = EncryptionUtils.encrypt(Secret.fromString(tok).getPlainText(), currNode);
-                mergedProperties.put("MobileExecToken", encToken);
+                String encToken = EncryptionUtils.encrypt(plainTextToken, currNode);
+                mergedProps.put("MobileExecToken", encToken);
             } catch (Exception e) {
                 build.setResult(Result.FAILURE);
-                listener.fatalError("Problem in UFT Mobile execution token encryption: " + e.getMessage() + ".");
+                listener.fatalError("Problem in Digital Lab execution token encryption: " + e.getMessage() + ".");
                 return;
             }
         }
@@ -707,21 +722,39 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
             VariableResolver<String> varResolver = ((AbstractBuild) build).getBuildVariableResolver();
         }
 
-        mergedProperties.putAll(Objects.requireNonNull(runFromFileModel).getProperties(env, currNode));
+        mergedProps.putAll(Objects.requireNonNull(runFromFileModel).getProperties(env, currNode));
 
         if (areParametersEnabled) {
             try {
-                specifyParametersModel.addProperties(mergedProperties, "Test");
+                specifyParametersModel.addProperties(mergedProps, "Test", currNode);
             } catch (Exception e) {
                 listener.error("Error occurred while parsing parameter input, reverting back to empty array.");
             }
         }
+        boolean isPrintTestParams = UftToolUtils.isPrintTestParams(build, listener);
+        mergedProps.put("printTestParams", isPrintTestParams ? "1" : "0");
 
+        UftRunAsUser uftRunAsUser;
+        try {
+            uftRunAsUser = UftToolUtils.getRunAsUser(build, listener);
+            if (uftRunAsUser != null) {
+                mergedProps.put("uftRunAsUserName", uftRunAsUser.getUsername());
+                if (StringUtils.isNotBlank(uftRunAsUser.getEncodedPassword())) {
+                    mergedProps.put("uftRunAsUserEncodedPassword", uftRunAsUser.getEncodedPasswordAsEncrypted(currNode));
+                } else if (uftRunAsUser.getPassword() != null) {
+                    mergedProps.put("uftRunAsUserPassword", uftRunAsUser.getPasswordAsEncrypted(currNode));
+                }
+            }
+        } catch(IllegalArgumentException | EncryptionUtils.EncryptionException e) {
+            build.setResult(Result.FAILURE);
+            listener.fatalError(String.format("Build parameters check failed: %s.", e.getMessage()));
+            return;
+        }
         int idx = 0;
         for (Iterator<String> iterator = env.keySet().iterator(); iterator.hasNext(); ) {
             String key = iterator.next();
             idx++;
-            mergedProperties.put("JenkinsEnv" + idx, key + ";" + env.get(key));
+            mergedProps.put("JenkinsEnv" + idx, key + ";" + env.get(key));
         }
 
         Date now = new Date();
@@ -729,38 +762,38 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         String time = formatter.format(now);
 
         // get a unique filename for the params file
-        ParamFileName = "props" + time + ".txt";
-        ResultFilename = String.format("Results%s_%d.xml", time, build.getNumber());
+        String propsFileName = String.format("props%s.txt", time);
+        String resFileName = String.format("Results%s_%d.xml", time, build.getNumber());
 
         long threadId = Thread.currentThread().getId();
         if (resultFileNames == null) {
             resultFileNames = new HashMap<Long, String>();
         }
-        resultFileNames.put(threadId, ResultFilename);
+        resultFileNames.put(threadId, resFileName);
 
-        mergedProperties.put("runType", AlmRunTypes.RunType.FileSystem.toString());
+        mergedProps.put("runType", AlmRunTypes.RunType.FileSystem.toString());
 
         if (summaryDataLogModel != null) {
-            summaryDataLogModel.addToProps(mergedProperties);
+            summaryDataLogModel.addToProps(mergedProps);
         }
 
         if (scriptRTSSetModel != null) {
-            scriptRTSSetModel.addScriptsToProps(mergedProperties, env);
+            scriptRTSSetModel.addScriptsToProps(mergedProps, env);
         }
 
-        mergedProperties.put("resultsFilename", ResultFilename);
+        mergedProps.put("resultsFilename", resFileName);
 
         // parallel runner is enabled
         if (isParallelRunnerEnabled) {
             // add the parallel runner properties
-            fileSystemTestSetModel.addTestSetProperties(mergedProperties, env);
+            fileSystemTestSetModel.addTestSetProperties(mergedProps, env);
 
             // we need to replace each mtbx test with mtbx file path
             for (int index = 1; index < this.fileSystemTestSetModel.getFileSystemTestSet().size(); index++) {
                 String key = "Test" + index;
-                String content = mergedProperties.getProperty(key + index, "");
+                String content = mergedProps.getProperty(key + index, "");
                 try {
-                    replaceTestWithMtbxFile(workspace, mergedProperties, content, key, time, index);
+                    replaceTestWithMtbxFile(workspace, mergedProps, content, key, time, index);
                 } catch (Exception e) {
                     build.setResult(Result.FAILURE);
                     listener.error("Failed to save MTBX file : " + e.getMessage());
@@ -773,9 +806,9 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
             // We save mtbx content in workspace and replace content of Test1 by reference to saved file
             // this only applies to the normal file system flow
             String firstTestKey = "Test1";
-            String firstTestContent = mergedProperties.getProperty(firstTestKey, "");
+            String firstTestContent = mergedProps.getProperty(firstTestKey, "");
             try {
-                replaceTestWithMtbxFile(workspace, mergedProperties, firstTestContent, firstTestKey, time);
+                replaceTestWithMtbxFile(workspace, mergedProps, firstTestContent, firstTestKey, time);
             } catch (Exception e) {
                 build.setResult(Result.FAILURE);
                 listener.error("Failed to save MTBX file : " + e.getMessage());
@@ -783,7 +816,7 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         }
 
         if (uftSettingsModel != null) {
-            uftSettingsModel.addToProperties(mergedProperties);
+            uftSettingsModel.addToProperties(mergedProps);
         }
 
         // cleanup report folders before running the build
@@ -798,8 +831,8 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
 
         // clean cleanuptests' report folders
         int index = 1;
-        while (mergedProperties.getProperty("CleanupTest" + index) != null) {
-            String testPath = mergedProperties.getProperty("CleanupTest" + index);
+        while (mergedProps.getProperty("CleanupTest" + index) != null) {
+            String testPath = mergedProps.getProperty("CleanupTest" + index);
             List<String> cleanupTests = UftToolUtils.getBuildTests(selectedNode, testPath);
             for (String test : cleanupTests) {
                 UftToolUtils.deleteReportFoldersFromNode(selectedNode, test, listener);
@@ -810,8 +843,8 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
 
         // clean actual tests' report folders
         index = 1;
-        while (mergedProperties.getProperty("Test" + index) != null) {
-            String testPath = mergedProperties.getProperty(("Test" + index));
+        while (mergedProps.getProperty("Test" + index) != null) {
+            String testPath = mergedProps.getProperty(("Test" + index));
             List<String> buildTests = UftToolUtils.getBuildTests(selectedNode, testPath);
             for (String test : buildTests) {
                 UftToolUtils.deleteReportFoldersFromNode(selectedNode, test, listener);
@@ -819,56 +852,64 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
             index++;
         }
 
-        mergedProperties.setProperty("numOfTests", String.valueOf(index - 1));
+        mergedProps.setProperty("numOfTests", String.valueOf(index - 1));
 
         // get properties serialized into a stream
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        String strProps;
         try {
-            mergedProperties.store(stream, "");
+            strProps = AlmToolsUtils.getPropsAsString(mergedProps);
         } catch (IOException e) {
-            listener.error("Storing run variable failed: " + e);
             build.setResult(Result.FAILURE);
+            listener.error("Failed to store properties on agent machine: " + e);
+            return;
+        }
+        
+        // Get the URL to the Script used to run the test, which is bundled
+        // in the plugin
+        @SuppressWarnings("squid:S2259")
+        URL cmdExeUrl = Jenkins.get().pluginManager.uberClassLoader.getResource(HP_TOOLS_LAUNCHER_EXE);
+        if (cmdExeUrl == null) {
+            listener.fatalError(HP_TOOLS_LAUNCHER_EXE + " not found in resources");
+            return;
         }
 
-        String propsSerialization = stream.toString();
-        
-        FilePath CmdLineExe;
-        try (InputStream propsStream = IOUtils.toInputStream(propsSerialization)) {
-            // Get the URL to the Script used to run the test, which is bundled
-            // in the plugin
-            @SuppressWarnings("squid:S2259")
-            URL cmdExeUrl = Jenkins.get().pluginManager.uberClassLoader.getResource(HP_TOOLS_LAUNCHER_EXE);
-            if (cmdExeUrl == null) {
-                listener.fatalError(HP_TOOLS_LAUNCHER_EXE + " not found in resources");
-                return;
-            }
+        @SuppressWarnings("squid:S2259")
+        URL cmdExeCfgUrl = Jenkins.get().pluginManager.uberClassLoader.getResource(HP_TOOLS_LAUNCHER_EXE_CFG);
+        if (cmdExeCfgUrl == null) {
+            listener.fatalError(HP_TOOLS_LAUNCHER_EXE_CFG + " not found in resources");
+            return;
+        }
 
-            @SuppressWarnings("squid:S2259")
-            URL cmdExe2Url = Jenkins.get().pluginManager.uberClassLoader.getResource(LRANALYSIS_LAUNCHER_EXE);
-            if (cmdExe2Url == null) {
-                listener.fatalError(LRANALYSIS_LAUNCHER_EXE + "not found in resources");
-                return;
-            }
+        @SuppressWarnings("squid:S2259")
+        URL cmdExe2Url = Jenkins.get().pluginManager.uberClassLoader.getResource(LRANALYSIS_LAUNCHER_EXE);
+        if (cmdExe2Url == null) {
+            listener.fatalError(LRANALYSIS_LAUNCHER_EXE + "not found in resources");
+            return;
+        }
 
-            FilePath propsFileName = workspace.child(ParamFileName);
-            CmdLineExe = workspace.child(HP_TOOLS_LAUNCHER_EXE);
-            FilePath CmdLineExe2 = workspace.child(LRANALYSIS_LAUNCHER_EXE);
+        FilePath fileProps = workspace.child(propsFileName);
+        FilePath cmdLineExe = workspace.child(HP_TOOLS_LAUNCHER_EXE);
+        FilePath cmdLineExeCfg = workspace.child(HP_TOOLS_LAUNCHER_EXE_CFG);
+        FilePath cmdLineExe2 = workspace.child(LRANALYSIS_LAUNCHER_EXE);
 
-            try {
-                // create a file for the properties file, and save the properties
-                propsFileName.copyFrom(propsStream);
-                // Copy the script to the project workspace
-                CmdLineExe.copyFrom(cmdExeUrl);
-                CmdLineExe2.copyFrom(cmdExe2Url);
-            } catch (IOException | InterruptedException e) {
+        try {
+            // create a file for the properties file, and save the properties
+            if (!AlmToolsUtils.tryCreatePropsFile(listener, strProps, fileProps)) {
                 build.setResult(Result.FAILURE);
-                listener.error("Copying executable files to executing node " + e);
+                return;
             }
+            // Copy the script to the project workspace
+            cmdLineExe.copyFrom(cmdExeUrl);
+            cmdLineExeCfg.copyFrom(cmdExeCfgUrl);
+            cmdLineExe2.copyFrom(cmdExe2Url);
+        } catch (IOException | InterruptedException e) {
+            build.setResult(Result.FAILURE);
+            listener.error("Failed to copy props file or UFT tools to agent machine. " + e);
         }
 
         try {
             // Run the HpToolsLauncher.exe
-            AlmToolsUtils.runOnBuildEnv(build, launcher, listener, CmdLineExe, ParamFileName, currNode, runFromFileModel.getOutEncoding());
+            AlmToolsUtils.runOnBuildEnv(build, launcher, listener, cmdLineExe, propsFileName, currNode, runFromFileModel.getOutEncoding());
             // Has the report been successfully generated?
         } catch (IOException ioe) {
             Util.displayIOException(ioe, listener);
@@ -876,9 +917,9 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
             listener.error("Failed running HpToolsLauncher " + ioe.getMessage());
         } catch (InterruptedException e) {
             build.setResult(Result.ABORTED);
-            listener.error("Failed running HpToolsLauncher - build aborted " + e.getMessage());
+            listener.error("Failed running HpToolsLauncher - build aborted " + StringUtils.defaultString(e.getMessage()));
             try {
-                AlmToolsUtils.runHpToolsAborterOnBuildEnv(build, launcher, listener, ParamFileName, workspace);
+                AlmToolsUtils.runHpToolsAborterOnBuildEnv(build, launcher, listener, propsFileName, workspace);
             } catch (IOException e1) {
                 Util.displayIOException(e1, listener);
                 build.setResult(Result.FAILURE);
@@ -984,19 +1025,52 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
          * @return the job id
          */
         @JavaScriptMethod
-        public String getJobId(String mcUrl, String mcUserName, String mcPassword, String mcTenantId, String mcExecToken, String authType,
-                               boolean fsUseAuthentication, String proxyAddress, String proxyUserName, String proxyPassword, String previousJobId) {
-            AuthModel authModel = new AuthModel(mcUserName, mcPassword, mcTenantId, mcExecToken, authType);
-            ProxySettings proxy = new ProxySettings(fsUseAuthentication, proxyAddress, proxyUserName, proxyPassword);
-            if (null != previousJobId && !previousJobId.isEmpty()) {
-                JSONObject jobJSON = instance.getJobById(mcUrl, authModel, proxy, previousJobId);
-                if (jobJSON != null && previousJobId.equals(jobJSON.getAsString("id"))) {
-                    return previousJobId;
+        public Map<String, String> getJobId(String mcUrl, String mcUserName, String mcPassword, String mcTenantId, String accessKey, String authType,
+                               boolean useProxyAuth, String proxyAddress, String proxyUserName, String proxyPassword, String previousJobId) {
+            AuthModel authModel = new AuthModel(mcUserName, mcPassword, mcTenantId, accessKey, authType);
+            ProxySettings proxy = new ProxySettings(useProxyAuth, proxyAddress, proxyUserName, proxyPassword);
+            Map<String, String> map = new HashMap<>();
+            String jobIdKey = "jobId";
+
+            try {
+                JSONObject loginJson = instance.loginToMC(mcUrl, authModel, proxy);
+                Map<String, String> initHeaders = instance.initHeaders(authModel, loginJson);
+                if (initHeaders != null) {
+                    map = initHeaders;
+                    boolean serverOnSaaS = instance.isServerOnSaaS(initHeaders, mcUrl, proxy);
+                    map.put("isSaaS", String.valueOf(serverOnSaaS));
+                    if (!StringUtils.isEmpty(accessKey)) {
+                            AtomicReference<String> tenantIdValue = new AtomicReference<>("");
+                            Arrays.stream(accessKey.split(";")).forEach(str -> {
+                                if (str.toLowerCase().contains("tenant")) {
+                                    tenantIdValue.set(str.substring(8));
+                                }
+                            });
+
+                            if (tenantIdValue.get() != null) {
+                                map.put(Constants.TENANT_ID_COOKIE, tenantIdValue.get());
+                            }
+                        }
+                    }
+
+                String jobId;
+                if (null != previousJobId && !previousJobId.isEmpty()) {
+                    JSONObject jobJSON = instance.getJobByIdWithHeaders(mcUrl, proxy, previousJobId, initHeaders);
+                    if (jobJSON != null && previousJobId.equals(jobJSON.getAsString("id"))) {
+                        jobId = previousJobId;
+                    } else {
+                        jobId = instance.createTempJobWithHeaders(mcUrl, proxy, initHeaders);
+                    }
                 } else {
-                    return instance.createTempJob(mcUrl, authModel, proxy);
+                    jobId = instance.createTempJobWithHeaders(mcUrl, proxy, initHeaders);
                 }
+
+                map.put(jobIdKey, jobId);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-            return instance.createTempJob(mcUrl, authModel, proxy);
+
+            return map;
         }
 
         /**
@@ -1007,11 +1081,11 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
          * @return the json object
          */
         @JavaScriptMethod
-        public JSONObject populateAppAndDevice(String mcUrl, String mcUserName, String mcPassword, String mcTenantId, String mcExecToken, String authType,
-                                               boolean fsUseAuthentication, String proxyAddress, String proxyUserName, String proxyPassword,
+        public JSONObject populateAppAndDevice(String mcUrl, String mcUserName, String mcPassword, String mcTenantId, String accessKey, String authType,
+                                               boolean useProxyAuth, String proxyAddress, String proxyUserName, String proxyPassword,
                                                String jobId) {
-            AuthModel authModel = new AuthModel(mcUserName, mcPassword, mcTenantId, mcExecToken, authType);
-            ProxySettings proxy = new ProxySettings(fsUseAuthentication, proxyAddress, proxyUserName, proxyPassword);
+            AuthModel authModel = new AuthModel(mcUserName, mcPassword, mcTenantId, accessKey, authType);
+            ProxySettings proxy = new ProxySettings(useProxyAuth, proxyAddress, proxyUserName, proxyPassword);
             return instance.getJobJSONData(mcUrl, authModel, proxy, jobId);
         }
 
@@ -1028,10 +1102,22 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
             MCServerSettingsModel[] servers = MCServerSettingsGlobalConfiguration.getInstance().getInstallations();
             for (MCServerSettingsModel mcServer : servers) {
                 if (mcServer.getMcServerName().equals(serverName)) {
-                    serverUrl = mcServer.getMcServerUrl();
+                    serverUrl = mcServer.getMcServerUrl().trim();
+                    break;
                 }
             }
             return serverUrl;
+        }
+
+        @JavaScriptMethod
+        public JSONObject getBrowserLab(String serverName, String accessKey, boolean useProxyAuth, String proxyAddr, String proxyUserName, String proxyPassword) {
+            String serverUrl = getMcServerUrl(serverName);
+            if (StringUtils.isNotBlank(serverUrl)) {
+                serverUrl = StringUtils.stripEnd(serverUrl, "/");
+                ProxySettings proxy = new ProxySettings(useProxyAuth, proxyAddr, proxyUserName, proxyPassword);
+                return instance.getBrowserLab(serverUrl, accessKey, proxy);
+            }
+            return null;
         }
 
         @Override
@@ -1104,7 +1190,18 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         @SuppressWarnings("squid:S2259")
 
         public MCServerSettingsModel[] getMcServers() {
-            return MCServerSettingsGlobalConfiguration.getInstance().getInstallations();
+            MCServerSettingsModel emptySrv = new MCServerSettingsModel("", "");
+            MCServerSettingsModel[] servers = MCServerSettingsGlobalConfiguration.getInstance().getInstallations();
+            if (servers == null) {
+                servers = new MCServerSettingsModel[0];
+            }
+            int nbOfServers = servers.length;
+            MCServerSettingsModel[] all = new MCServerSettingsModel[nbOfServers + 1];
+            all[0] = emptySrv;
+            for (int i = 0; i < servers.length; i++) {
+                all[i + 1] = servers[i];
+            }
+            return all;
         }
 
         /**
@@ -1168,6 +1265,8 @@ public class RunFromFileBuilder extends Builder implements SimpleBuildStep {
         }
 
         public List<String> getEncodings() { return RunFromFileSystemModel.encodings; }
+
+        public boolean getHasConfigurePermission() { return JenkinsUtils.hasItemConfigurePermission(); }
     }
 
 }

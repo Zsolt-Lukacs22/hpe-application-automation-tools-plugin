@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -39,6 +43,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Security;
+using HpToolsLauncher.Utils;
 
 namespace HpToolsLauncher
 {
@@ -56,6 +61,8 @@ namespace HpToolsLauncher
         private readonly char[] COMMA = new char[] { ',' };
         private const string API_TEST = "SERVICE-TEST";
         private const string GUI_TEST = "QUICKTEST_TEST";
+        private List<TestParameter> _params;
+        private const string PASSWORD = "password";
 
         public ITDConnection13 TdConnection
         {
@@ -94,7 +101,6 @@ namespace HpToolsLauncher
         public bool SSOEnabled { get; set; }
         public string ClientID { get; set; }
         public string ApiKey { get; set; }
-        public List<TestParameter> TestParameters { get; set; }
 
         /// <summary>
         /// constructor
@@ -123,7 +129,7 @@ namespace HpToolsLauncher
                                 QcRunMode enmQcRunMode,
                                 string runHost,
                                 List<string> qcTestSets,
-                                List<TestParameter> parameters,
+                                List<TestParameter> @params,
                                 bool isFilterSelected,
                                 string filterByName,
                                 List<string> filterByStatuses,
@@ -153,7 +159,7 @@ namespace HpToolsLauncher
 
             Connected = ConnectToProject(MQcServer, MQcUser, qcPassword, MQcDomain, MQcProject, SSOEnabled, ClientID, ApiKey);
             TestSets = qcTestSets;
-            TestParameters = parameters;
+            _params = @params;
             Storage = testStorageType;
             if (!Connected)
             {
@@ -751,9 +757,9 @@ namespace HpToolsLauncher
                                 testList.Remove(index);
 
                                 if (isTestPath && testName.Equals(tListIndexTestName))
-								{
+                                {
                                     testExisted = true;
-								}
+                                }
                             }
                         }
                         else //by name and statuses
@@ -801,7 +807,8 @@ namespace HpToolsLauncher
                     if (!string.IsNullOrEmpty(tListIndexName) && !string.IsNullOrEmpty(testName) && !testName.Equals(tListIndexTestName))
                     {
                         testList.Remove(index);
-                    } else if (testName.Equals(tListIndexTestName))
+                    }
+                    else if (testName.Equals(tListIndexTestName))
                     {
                         testExisted = true;
                     }
@@ -862,27 +869,29 @@ namespace HpToolsLauncher
         /// Collect the inline parameters for the tests.
         /// </summary>
         /// <param name="tList"></param>
-        /// <param name="testParameters"></param>
+        /// <param name="strParams"></param>
         /// <param name="runDesc"></param>
         /// <param name="initialFullTsPath"></param>
-        /// <param name="parametersPlaceholder"></param>
-        public void CollectInlineTestParameters(IList tList, string testParameters, TestSuiteRunResults runDesc, string initialFullTsPath, List<TestParameter> parametersPlaceholder)
+        /// <param name="params"></param>
+        public void CollectInlineTestParams(IList tList, string strParams, string initialFullTsPath, List<TestParameter> @params)
         {
             int idx = 1;
 
             foreach (ITSTest3 test in tList)
             {
                 try
-				{
-                    if (test.Type.Equals(API_TEST) && !string.IsNullOrEmpty(testParameters)) //API test
+                {
+                    if (test.Type.Equals(API_TEST) && !string.IsNullOrEmpty(strParams)) //API test
                     {
-                        CollectInlineApiTestParameters(test, testParameters, parametersPlaceholder, idx);
-                    } else if (test.Type.Equals(GUI_TEST) && !string.IsNullOrEmpty(testParameters)) //GUI test
-                    {
-                        CollectInlineGuiTestParameters(test, testParameters, parametersPlaceholder, idx);
+                        CollectInlineApiTestParams(test, strParams, @params, idx);
                     }
-                } catch (ArgumentException)
-				{
+                    else if (test.Type.Equals(GUI_TEST) && !string.IsNullOrEmpty(strParams)) //GUI test
+                    {
+                        CollectInlineGuiTestParams(test, strParams, @params, idx);
+                    }
+                }
+                catch (ArgumentException)
+                {
                     ConsoleWriter.WriteErrLine(string.Format(Resources.AlmRunnerErrorParameterFormat, initialFullTsPath));
                 }
 
@@ -893,14 +902,12 @@ namespace HpToolsLauncher
         /// <summary>
         /// Collect the parameters for the tests from the props (CI args).
         /// </summary>
-        /// <param name="filteredTestList"></param>
-        /// <param name="runDesc"></param>
-        /// <param name="parametersPlaceholder"></param>
+        /// <param name="params"></param>
         /// <param name="testIdx"></param>
-        public void CollectPropsTestParameters(IList filteredTestList, TestSuiteRunResults runDesc, List<TestParameter> parametersPlaceholder, int testIdx)
+        private void CollectPropsTestParams(List<TestParameter> @params, int testIdx)
         {
-            List<TestParameter> relevant = TestParameters.FindAll(elem => elem.TestIdx.Equals(testIdx));
-            parametersPlaceholder.AddRange(relevant);
+            List<TestParameter> relevant = _params.FindAll(elem => elem.TestIdx == testIdx);
+            @params.AddRange(relevant);
         }
 
         /// <summary>
@@ -938,24 +945,24 @@ namespace HpToolsLauncher
         /// Set test parameters for an API test
         /// </summary>
         /// <param name="test"></param>
-        /// <param name="paramsString"></param>
-        /// <param name="parametersPlaceholder"></param>
+        /// <param name="strParams"></param>
+        /// <param name="testParams"></param>
         /// <param name="idx"></param>
-        private void CollectInlineApiTestParameters(ITSTest3 test, string paramsString, IList<TestParameter> parametersPlaceholder, int idx)
+        private void CollectInlineApiTestParams(ITSTest3 test, string strParams, IList<TestParameter> testParams, int idx)
         {
-            if (!string.IsNullOrEmpty(paramsString))
+            if (!string.IsNullOrEmpty(strParams))
             {
-                string[] @params = paramsString.Split(COMMA, StringSplitOptions.RemoveEmptyEntries);
+                string[] @params = strParams.Split(COMMA, StringSplitOptions.RemoveEmptyEntries);
                 IList<string> paramNames, paramValues;
 
-                if (!Helper.ValidateListOfParamsForInline(@params, out paramNames, out paramValues))
-				{
+                if (!Helper.ValidateInlineParams(@params, out paramNames, out paramValues))
+                {
                     throw new ArgumentException();
                 }
 
                 for (int i = 0; i < @params.Length; ++i)
                 {
-                    parametersPlaceholder.Add(new TestParameter(idx, paramNames[i], paramValues[i], null));
+                    testParams.Add(new TestParameter(idx, paramNames[i], paramValues[i], null));
                 }
             }
         }
@@ -964,26 +971,26 @@ namespace HpToolsLauncher
         /// Set test parameters for a GUI test
         /// </summary>
         /// <param name="test"></param>
-        /// <param name="paramsString"></param>
-        /// <param name="parametersPlaceholder"></param>
+        /// <param name="strParams"></param>
+        /// <param name="testParams"></param>
         /// <param name="idx"></param>
-        private void CollectInlineGuiTestParameters(ITSTest3 test, string paramsString, IList<TestParameter> parametersPlaceholder, int idx)
+        private void CollectInlineGuiTestParams(ITSTest3 test, string strParams, IList<TestParameter> testParams, int idx)
         {
             var xmlParams = new StringBuilder();
 
-            if (!string.IsNullOrWhiteSpace(paramsString))
+            if (!string.IsNullOrWhiteSpace(strParams))
             {
-                string[] @params = paramsString.Split(COMMA, StringSplitOptions.RemoveEmptyEntries);
+                string[] @params = strParams.Split(COMMA, StringSplitOptions.RemoveEmptyEntries);
                 IList<string> paramNames, paramValues;
 
-                if (!Helper.ValidateListOfParamsForInline(@params, out paramNames, out paramValues))
+                if (!Helper.ValidateInlineParams(@params, out paramNames, out paramValues))
                 {
                     throw new ArgumentException();
                 }
 
                 for (int i = 0; i < @params.Length; ++i)
                 {
-                    parametersPlaceholder.Add(new TestParameter(idx, paramNames[i], paramValues[i], null));
+                    testParams.Add(new TestParameter(idx, paramNames[i], paramValues[i], null));
                 }
             }
         }
@@ -993,13 +1000,10 @@ namespace HpToolsLauncher
         /// </summary>
         /// <param name="currentTest"></param>
         /// <returns></returns>
-        private string GetTestType(dynamic currentTest)
+        private TestType GetTestType(dynamic currentTest)
         {
             string testType = currentTest.Test.Type;
-
-            testType = testType.ToUpper() == API_TEST ? TestType.ST.ToString() : TestType.QTP.ToString();
-
-            return testType;
+            return testType.ToUpper() == API_TEST ? TestType.ST : TestType.QTP;
         }
 
         // ------------------------- Run tests and update test results --------------------------------
@@ -1039,7 +1043,7 @@ namespace HpToolsLauncher
                 int pos = testSetItem.LastIndexOf('\\');
 
                 string testSetDir = string.Empty;
-                string inlineTestParameters = string.Empty;
+                string inlineTestParams = string.Empty;
 
                 if (pos != -1)
                 {
@@ -1057,7 +1061,7 @@ namespace HpToolsLauncher
                             if (quotationMarkIndex > pos)
                             {
                                 tsName = testSet.Substring(pos, quotationMarkIndex - pos).Trim(_backSlash).TrimEnd(' ');
-                                inlineTestParameters = testSet.Substring(quotationMarkIndex, testSet.Length - quotationMarkIndex).Trim(_backSlash);
+                                inlineTestParams = testSet.Substring(quotationMarkIndex, testSet.Length - quotationMarkIndex).Trim(_backSlash);
                             }
                         }
                     }
@@ -1067,12 +1071,12 @@ namespace HpToolsLauncher
                     }
                 }
 
-                TestSuiteRunResults runResults = RunTestSet(testSetDir, tsName, inlineTestParameters, swForTimeout, idx);
+                TestSuiteRunResults runResults = RunTestSet(testSetDir, tsName, inlineTestParams, swForTimeout, idx);
                 if (runResults != null)
                     activeRunDescription.AppendResults(runResults);
 
                 // if the run has cancelled, because of timeout, we should terminate the build
-                if (_blnRunCancelled) break;
+                if (_isRunCancelled) break;
 
                 ++idx;
             }
@@ -1085,11 +1089,11 @@ namespace HpToolsLauncher
         /// </summary>
         /// <param name="tsFolderName">testSet folder name</param>
         /// <param name="tsName">testSet name</param>
-        /// <param name="inlineTestParameters"></param>
+        /// <param name="inlineTestParams"></param>
         /// <param name="swForTimeout"></param>
         /// <param name="testIdx"></param>
         /// <returns></returns>
-        public TestSuiteRunResults RunTestSet(string tsFolderName, string tsName, string inlineTestParameters, Stopwatch swForTimeout, int testIdx)
+        public TestSuiteRunResults RunTestSet(string tsFolderName, string tsName, string inlineTestParams, Stopwatch swForTimeout, int testIdx)
         {
             string testSuiteName = tsName.TrimEnd();
             ITestSetFolder tsFolder = null;
@@ -1201,14 +1205,14 @@ namespace HpToolsLauncher
             if (filteredTestList.Count > 0)
             {
                 // placeholder list for test parameters
-                List<TestParameter> testParameters = new List<TestParameter>();
+                List<TestParameter> @params = new List<TestParameter>();
 
-                CollectInlineTestParameters(filteredTestList, inlineTestParameters, runDesc, initialFullTsPath, testParameters);
-                CollectPropsTestParameters(filteredTestList, runDesc, testParameters, testIdx);
+                CollectInlineTestParams(filteredTestList, inlineTestParams, initialFullTsPath, @params);
+                CollectPropsTestParams(@params, testIdx);
 
                 try
                 {
-                    CheckForDuplicateParametersForTest(testParameters);
+                    CheckForDuplicateParams4Test(@params);
                 }
                 catch (ArgumentException)
                 {
@@ -1223,7 +1227,7 @@ namespace HpToolsLauncher
                 int index = 1;
                 foreach (ITSTest3 test in filteredTestList)
                 {
-                    SetParameters(test, testParameters);
+                    SetParams(test, @params);
 
                     ScheduleTest(runDesc, scheduler, test, index);
                     ++index;
@@ -1240,11 +1244,12 @@ namespace HpToolsLauncher
 
                 UpdateTestResultsIfTestErrorAppearedBeforeRun(ref runDesc, ref activeTestDesc, initialFullTsPath, string.Format(Resources.AlmRunnerCantFindTest, activeTestDesc.TestPath));
                 return runDesc;
-            } else if (filteredTestList.Count == 0)
-			{
+            }
+            else if (filteredTestList.Count == 0)
+            {
                 ConsoleWriter.WriteLine(Resources.AlmTestSetsRunnerNoTestAfterApplyingFilters);
                 return null;
-			}
+            }
 
             //start test runner
             Stopwatch sw = Stopwatch.StartNew();
@@ -1279,17 +1284,18 @@ namespace HpToolsLauncher
             //done with all tests, stop collecting output in the testRun object.
             ConsoleWriter.ActiveTestRun = null;
 
-			string testPath;
-			if (isTestPath)
-			{
+            string testPath;
+            if (isTestPath)
+            {
                 testPath = string.Format(@"Root\{0}\", tsFolderName);
-            } else
-			{
+            }
+            else
+            {
                 testPath = string.Format(@"Root\{0}\{1}\", tsFolderName, testSuiteName);
             }
 
             // if the run has been cancelled and a timeout is set, which has elapsed, skip this part, we are going to do it later with some corrections
-            if (!_blnRunCancelled && (Timeout == -1 || swForTimeout.Elapsed.TotalSeconds < Timeout))
+            if (!_isRunCancelled && (Timeout == -1 || swForTimeout.Elapsed.TotalSeconds < Timeout))
                 SetTestResults(ref currentTest, executionStatus, targetTestSet, activeTestDesc, runDesc, testPath, abortFilename);
 
             // update the total runtime
@@ -1332,16 +1338,16 @@ namespace HpToolsLauncher
         /// Sets the Test's parameters.
         /// </summary>
         /// <param name="test"></param>
-        /// <param name="relevant"></param>
-        private static void SetParameters(ITSTest3 test, List<TestParameter> relevant)
+        /// <param name="params"></param>
+        private static void SetParams(ITSTest3 test, List<TestParameter> @params)
         {
             switch (test.Type)
             {
                 case API_TEST:
-                    SetAPITestParameters(test, relevant);
+                    SetAPITestParams(test, @params);
                     break;
                 case GUI_TEST:
-                    SetGUITestParameters(test, relevant);
+                    SetGUITestParams(test, @params);
                     break;
             }
         }
@@ -1350,24 +1356,31 @@ namespace HpToolsLauncher
         /// Sets the GUI Test's parameters.
         /// </summary>
         /// <param name="test"></param>
-        /// <param name="relevant"></param>
-        private static void SetGUITestParameters(ITSTest3 test, List<TestParameter> relevant)
+        /// <param name="params"></param>
+        private static void SetGUITestParams(ITSTest3 test, List<TestParameter> @params)
         {
             var xmlParams = new StringBuilder();
 
-            if (relevant.Count > 0)
+            if (@params.Count > 0)
             {
                 xmlParams.Append(XML_PARAMS_START_TAG);
-                foreach (var parameter in relevant)
+                foreach (var param in @params)
                 {
-                    xmlParams.AppendFormat(XML_PARAM_NAME_VALUE_TYPE, SecurityElement.Escape(parameter.ParamName), SecurityElement.Escape(parameter.ParamVal), parameter.ParamType);
+                    xmlParams.AppendFormat(XML_PARAM_NAME_VALUE_TYPE, SecurityElement.Escape(param.ParamName), SecurityElement.Escape(param.ParamVal), param.ParamType);
                 }
                 xmlParams.Append(XML_PARAMS_END_TAG);
             }
 
             if (xmlParams.Length <= 0) return;
 
-            relevant.ForEach(elem => ConsoleWriter.WriteLine(string.Format(Resources.GeneralParameterUsage, elem.ParamName, elem.ParamVal)));
+            @params.ForEach(elem =>
+            {
+                if (elem.ParamType == PASSWORD)
+                    ConsoleWriter.WriteLine(string.Format(Resources.GeneralParameterUsageMask, elem.ParamName));
+                else
+                    ConsoleWriter.WriteLine(string.Format(Resources.GeneralParameterUsage, elem.ParamName, elem.ParamVal));
+            }
+            );
 
             test["TC_EPARAMS"] = xmlParams.ToString();
             test.Post();
@@ -1377,23 +1390,23 @@ namespace HpToolsLauncher
         /// Sets the API Test's parameters.
         /// </summary>
         /// <param name="test"></param>
-        /// <param name="relevant"></param>
-        private static void SetAPITestParameters(ITSTest3 test, List<TestParameter> relevant)
+        /// <param name="params"></param>
+        private static void SetAPITestParams(ITSTest3 test, List<TestParameter> @params)
         {
             ISupportParameterValues paramTestValues = (ISupportParameterValues)test;
-            ParameterValueFactory parameterValueFactory = paramTestValues.ParameterValueFactory;
-            List listOfParameters = parameterValueFactory.NewList(string.Empty);
+            ParameterValueFactory paramValFactory = paramTestValues.ParameterValueFactory;
+            List listOfParams = paramValFactory.NewList(string.Empty);
 
-            foreach (ParameterValue parameter in listOfParameters)
+            foreach (ParameterValue param in listOfParams)
             {
                 // we search for the paramter by name in the relevant list, if found we set it, otherwise skip this parameter from the factory
-                string name = parameter.Name;
-                TestParameter tmpParam = relevant.Find(elem => elem.ParamName.Equals(name));
+                string name = param.Name;
+                TestParameter tmpParam = @params.Find(elem => elem.ParamName.Equals(name));
 
                 if (tmpParam == null) continue;
 
-                parameter.ActualValue = tmpParam.ParamVal;
-                parameter.Post();
+                param.ActualValue = tmpParam.ParamVal;
+                param.Post();
 
                 ConsoleWriter.WriteLine(string.Format(Resources.GeneralParameterUsage, tmpParam.ParamName, tmpParam.ParamVal));
             }
@@ -1402,19 +1415,19 @@ namespace HpToolsLauncher
         /// <summary>
         /// Checks if the parameter list contains duplicates, throws ArgumentException because uses a Dictionary internally.
         /// </summary>
-        /// <param name="relevant"></param>
-        private static void CheckForDuplicateParametersForTest(List<TestParameter> relevant)
+        /// <param name="params"></param>
+        private static void CheckForDuplicateParams4Test(List<TestParameter> @params)
         {
             // throws argumentexception if duplicate found
             Dictionary<string, object> tmpParams = new Dictionary<string, object>();
-            relevant.ForEach(param => tmpParams.Add(param.ParamName, param.ParamVal));
+            @params.ForEach(param => tmpParams.Add(param.ParamName, param.ParamVal));
         }
 
         /// <summary>
         /// Terminates wexectrl process which belongs to the current HpToolsLauncher process
         /// </summary>
         private void TerminateSchedulerIfNecessary()
-		{
+        {
             Process exeCtrl = Process.GetProcessesByName("wexectrl").Where(p => p.SessionId == Process.GetCurrentProcess().SessionId).FirstOrDefault();
 
             if (exeCtrl != null)
@@ -1488,7 +1501,7 @@ namespace HpToolsLauncher
         /// <param name="tsPath"></param>
         /// <param name="errMessage"></param>
 		private void UpdateTestResultsIfTestErrorAppearedBeforeRun(ref TestSuiteRunResults runDesc, ref TestRunResults activeTestDesc, string tsPath, string errMessage)
-		{
+        {
             runDesc.NumTests++;
             runDesc.TotalRunTime = System.TimeSpan.Zero;
             runDesc.NumErrors++;
@@ -1509,17 +1522,17 @@ namespace HpToolsLauncher
             runDesc.TestRuns.Add(activeTestDesc);
         }
 
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="currentTest"></param>
-		/// <param name="executionStatus"></param>
-		/// <param name="targetTestSet"></param>
-		/// <param name="activeTestDesc"></param>
-		/// <param name="runDesc"></param>
-		/// <param name="testPath"></param>
-		/// <param name="abortFilename"></param>
-		private void SetTestResults(ref ITSTest currentTest, IExecutionStatus executionStatus, ITestSet targetTestSet, TestRunResults activeTestDesc, TestSuiteRunResults runDesc, string testPath, string abortFilename)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="currentTest"></param>
+        /// <param name="executionStatus"></param>
+        /// <param name="targetTestSet"></param>
+        /// <param name="activeTestDesc"></param>
+        /// <param name="runDesc"></param>
+        /// <param name="testPath"></param>
+        /// <param name="abortFilename"></param>
+        private void SetTestResults(ref ITSTest currentTest, IExecutionStatus executionStatus, ITestSet targetTestSet, TestRunResults activeTestDesc, TestSuiteRunResults runDesc, string testPath, string abortFilename)
         {
             if (currentTest == null) throw new ArgumentNullException("Current test set is null.");
 
@@ -1568,7 +1581,7 @@ namespace HpToolsLauncher
                 var testIndex = GetIndexOfTestIdentifiedByName(currentTest.Name, runResults);
 
                 qTest = runResults.TestRuns[testIndex];
-                if (qTest.TestType == null)
+                if (qTest.TestType == TestType.Unknown)
                 {
                     qTest.TestType = GetTestType(currentTest);
                 }
@@ -1716,7 +1729,7 @@ namespace HpToolsLauncher
                                 //start timing the new test run
                                 string folderName = string.Empty;
 
-                                var folder = targetTestSet.TestSetFolder as ITestSetFolder;
+                                ITestSetFolder folder = targetTestSet.TestSetFolder as ITestSetFolder;
                                 if (folder != null)
                                     folderName = folder.Name.Replace(".", "_");
 
@@ -1724,19 +1737,18 @@ namespace HpToolsLauncher
                                 activeTestDesc.TestGroup = string.Format(@"{0}\{1}", folderName, targetTestSet.Name).Replace(".", "_");
                             }
 
-                            TestState enmState = GetTsStateFromQcState(testExecStatusObj);
-                            string statusString = enmState.ToString();
+                            TestState execState = GetTsStateFromQcState(testExecStatusObj);
 
-                            if (enmState == TestState.Running)
+                            if (execState == TestState.Running)
                             {
-                                ConsoleWriter.WriteLine(string.Format(Resources.AlmRunnerStat, activeTestDesc.TestName, testExecStatusObj.TSTestId, statusString));
+                                ConsoleWriter.WriteLine(string.Format(Resources.AlmRunnerStat, activeTestDesc.TestName, testExecStatusObj.TSTestId, execState));
                             }
-                            else if (enmState != TestState.Waiting)
+                            else if (execState != TestState.Waiting)
                             {
-                                ConsoleWriter.WriteLine(string.Format(Resources.AlmRunnerStatWithMessage, activeTestDesc.TestName, testExecStatusObj.TSTestId, statusString, testExecStatusObj.Message));
+                                ConsoleWriter.WriteLine(string.Format(Resources.AlmRunnerStatWithMessage, activeTestDesc.TestName, testExecStatusObj.TSTestId, execState, testExecStatusObj.Message));
 
-                                if (IsInAFinishedState(statusString))
-								{
+                                if (execState != TestState.Unknown)
+                                {
                                     WriteTestRunSummary(currentTest);
                                 }
                             }
@@ -1766,7 +1778,7 @@ namespace HpToolsLauncher
                 //check for abortion
                 if (File.Exists(abortFilename))
                 {
-                    _blnRunCancelled = true;
+                    _isRunCancelled = true;
 
                     ConsoleWriter.WriteLine(Resources.GeneralStopAborted);
 
@@ -1780,9 +1792,9 @@ namespace HpToolsLauncher
                 }
 
                 if (sw.Elapsed.TotalSeconds >= timeout && timeout != -1)
-				{
+                {
                     // setting the flag ensures that we will recall later, that the currently scheduled tests are aborted because of the timeout
-                    _blnRunCancelled = true;
+                    _isRunCancelled = true;
                 }
             }
         }
@@ -1804,9 +1816,9 @@ namespace HpToolsLauncher
             mQcServer = Regex.Replace(mQcServer, "^http[s]?://", string.Empty, RegexOptions.IgnoreCase);
 
             if (!mQcServer.EndsWith("/"))
-			{
+            {
                 mQcServer += "/";
-			}
+            }
 
             return string.Format("{0}://{1}.{2}.{3}TestRunsModule-00000000090859589?EntityType=IRun&EntityID={4}", prefix, MQcProject, MQcDomain, mQcServer, runId);
         }
@@ -1830,18 +1842,6 @@ namespace HpToolsLauncher
 
             return runId;
         }
-
-        /// <summary>
-        /// Returns if the specific test's status is a finished status, either Passed, Failed, Error or Warning
-        /// </summary>
-        /// <param name="testStatus"></param>
-        /// <returns></returns>
-        private bool IsInAFinishedState(string testStatus)
-		{
-            return testStatus != TestState.Running.ToString() 
-                && testStatus != TestState.Waiting.ToString() 
-                && testStatus != TestState.Unknown.ToString();
-		}
 
         /// <summary>
         /// writes a summary of the test run after it's over
@@ -1878,7 +1878,7 @@ namespace HpToolsLauncher
             {
                 ConsoleWriter.WriteLine("\n" + string.Format(Resources.AlmRunnerDisplayLink, "\n" + linkStr + "\n"));
             }
-            
+
             ConsoleWriter.WriteLineWithTime(Resources.AlmRunnerTestCompleteCaption + " " + prevTest.Name +
                                             ", " + Resources.AlmRunnerRunIdCaption + " " + runId
                                             + "\n-------------------------------------------------------------------------------------------------------");
@@ -1914,9 +1914,7 @@ namespace HpToolsLauncher
         /// <param name="testSuite"></param>
         private void UpdateCounters(TestRunResults test, TestSuiteRunResults testSuite)
         {
-            if (test.TestState != TestState.Running &&
-                test.TestState != TestState.Waiting &&
-                test.TestState != TestState.Unknown)
+            if (!test.TestState.In(TestState.Running, TestState.Waiting, TestState.Unknown))
                 ++testSuite.NumTests;
 
             switch (test.TestState)
@@ -1947,6 +1945,7 @@ namespace HpToolsLauncher
 
             if (qcTestStatus == null)
                 return TestState.Unknown;
+
             switch (qcTestStatus.Status)
             {
                 case "Waiting":
@@ -1961,11 +1960,11 @@ namespace HpToolsLauncher
                 case "Success":
                 case "Finished":
                 case "FinishedPassed":
-					{
+                    {
                         if (qcTestStatus.Message.Contains("warning"))
-						{
+                        {
                             return TestState.Warning;
-						}
+                        }
 
                         return TestState.Passed;
                     }
@@ -1974,7 +1973,6 @@ namespace HpToolsLauncher
             }
             return TestState.Unknown;
         }
-
 
         // ------------------------- Logs -----------------------------
 
@@ -1988,7 +1986,7 @@ namespace HpToolsLauncher
             try
             {
                 var sf = pTest.StepFactory as StepFactory;
-;                if (sf == null)
+                ; if (sf == null)
                     return string.Empty;
 
                 var stepList = sf.NewList(string.Empty) as IList;
@@ -2011,7 +2009,6 @@ namespace HpToolsLauncher
                 return string.Empty;
             }
         }
-
 
         /// <summary>
         /// retrieves the run logs for the test when the steps are not reported to Qc (like in ST)

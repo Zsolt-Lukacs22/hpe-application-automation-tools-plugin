@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -31,7 +35,12 @@ package com.microfocus.application.automation.tools.rest;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.HttpCookie;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -74,6 +83,8 @@ public class RestClient implements Client {
     private final String _webuiPrefix;
     private final String _username;
     private final String XSRF_TOKEN_VALUE;
+
+    private CookieManager cookieManager;
 
     /**
      * Configure SSL context for the client.
@@ -135,7 +146,17 @@ public class RestClient implements Client {
         _webuiPrefix = getPrefixUrl("webui/alm", domain, project);
 
         XSRF_TOKEN_VALUE = UUID.randomUUID().toString();
-        _cookies.put("XSRF-TOKEN", XSRF_TOKEN_VALUE);
+        cookieManager = new CookieManager();
+        CookieHandler.setDefault(cookieManager);
+        URI uri = null;
+        try {
+            uri = new URI(url);
+        } catch (URISyntaxException e) {
+            //
+        }
+        HttpCookie cookie = new HttpCookie("XSRF-TOKEN", XSRF_TOKEN_VALUE);
+        cookie.setPath("/qcbin");
+        cookieManager.getCookieStore().add(uri, cookie);
     }
 
     public String getXsrfTokenValue() {
@@ -279,7 +300,6 @@ public class RestClient implements Client {
             prepareHttpRequest(connection, decoratedHeaders, data);
             connection.connect();
             ret = retrieveHtmlResponse(connection);
-            updateCookies(ret);
         } catch (Exception cause) {
             throw new SSEException(cause);
         }
@@ -294,12 +314,7 @@ public class RestClient implements Client {
             HttpURLConnection connnection,
             Map<String, String> headers,
             byte[] bytes) {
-
-        // set all cookies for request
-        connnection.setRequestProperty(RESTConstants.COOKIE, getCookiesString());
-
         setConnectionHeaders(connnection, headers);
-
         setConnectionData(connnection, bytes);
     }
 
@@ -383,47 +398,9 @@ public class RestClient implements Client {
         return ret;
     }
 
-    /**
-     * Update cookies
-     */
-    private void updateCookies(Response response) {
-
-        Iterable<String> newCookies = response.getHeaders().get(RESTConstants.SET_COOKIE);
-        if (newCookies != null) {
-            for (String cookie : newCookies) {
-                int equalIndex = cookie.indexOf('=');
-                int semicolonIndex = cookie.indexOf(';');
-                String cookieKey = cookie.substring(0, equalIndex);
-                String cookieValue = cookie.substring(equalIndex + 1, semicolonIndex);
-                _cookies.put(cookieKey, cookieValue);
-            }
-        }
-    }
-
-    /**
-     * Get cookies string
-     */
-    private String getCookiesString() {
-        StringBuilder ret = new StringBuilder();
-        if (!_cookies.isEmpty()) {
-            for (Entry<String, String> entry : _cookies.entrySet()) {
-                ret.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
-            }
-        }
-
-        return ret.toString();
-    }
-
     @Override
     public String getUsername() {
         return _username;
     }
 
-
-    /**
-     * Get cookies
-     */
-    public Map<String, String> getCookies() {
-        return _cookies;
-    }
 }

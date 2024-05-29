@@ -1,11 +1,11 @@
-# Micro Focus Application Automation Tools
+# OpenText Application Automation Tools
 
 
-This [Micro Focus Application Automation Tools plugin](https://plugins.jenkins.io/hp-application-automation-tools-plugin) integrates Micro Focus products with Jenkins. Using the plugin, you can create and use virtual services, run LoadRunner Enterprise or LoadRunner Professional tests, run UFT functional tests, run tests in your lab, and run tests on mobile devices. This plugin also lets you upload test results to ALM. In addition, ALM Octane users can track and trigger Jenkins pipelines from within the user interface.
+This [OpenText Application Automation Tools plugin](https://plugins.jenkins.io/hp-application-automation-tools-plugin) integrates OpenText products with Jenkins. Using the plugin, you can create and use virtual services, run LoadRunner Enterprise or LoadRunner Professional tests, run UFT functional tests, run tests in your lab, and run tests on mobile devices. This plugin also lets you upload test results to ALM. In addition, ALM Octane users can track and trigger Jenkins pipelines from within the user interface.
 
 ### Jenkins versions
 
-This plugin requires one of the five latest [LTS versions](https://jenkins.io/changelog-stable/) of Jenkins. This is a result of the Jenkins policy to no longer support older update centers. Jenkins now requires you to have Java 8 installed on the machine. To recover any information lost during an upgrade relating to package names, backup the Jenkins folder and then run the [Rebranding script](https://wiki.jenkins.io/display/JENKINS/Micro+Focus+Application+Automation+Tools#MicroFocusApplicationAutomationTools-UserGuide).
+This plugin requires one of the five latest [LTS versions](https://jenkins.io/changelog-stable/) of Jenkins. This is a result of the Jenkins policy to no longer support older update centers. Jenkins now requires you to have Java 8 installed on the machine.
 
 ### Submit issues and feedback through JIRA
 
@@ -19,8 +19,6 @@ A list of known bugs is available [here](https://issues.jenkins-ci.org/issues/?j
 [New Features and Enhancements](#new-features-and-enhancements)
 
 [Release notes](#release-notes)
-
-[Changelog](#changelog)
 
 [Supported Integrations](#supported-integrations)
 
@@ -53,57 +51,40 @@ Starting with version 1.641 (or 1.625.3), Jenkins introduced the  **Content-Secu
 
 ## New Features and Enhancements
 
-Version 7.5 introduced the following enhancements and fixes:
-
-**ALM**
-
-- For the **Upload test result to ALM using field mapping** build step:
-    - You can now search for a test set by its name in a specific folder instead of all folders. 
-    - Defect fix: The check for the test map name is suppressed if no new test is being created.
+Version CE 24.1.0 introduced the following enhancements and fixes:
 
 **UFT One**
+ - Added support for Cloud browser.
+ - Fixed proxy issue for Digital Lab connections.
 
--	Layout fixes that were broken in Jenkins 2.346.1 LTS latest version. 
+**UFT Digital Lab**
+ - Added ability to open the ValueEdge Digital Lab wizard from Jenkins via an access key only.
 
+**ALM Octane**
+- Newly discovered units will automatically be allocated to a runner. A new folder will be created for each runner.
+- Bug fixes.
+  
 For information about enhancements introduced in previous versions, see [What's new in earlier versions](WhatsNewEarlier.md). 
-
-## Release notes
-
-Pipeline scripts are empty in the script editor from within job configurations. You can view scripts in the config.xml file for each job. This issue does not affect the functionality of the plugin. **Note:** This limitation only applies to version 7.4. A fix was provided in version 7.4.1 Beta.
-
-## Changelog
-
-The [Changelog ](https://wiki.jenkins.io/display/JENKINS/Changelog)page lists the bug fix changes in the versions of the plugin.
-
-
-- [Version 5.6.2](https://wiki.jenkins.io/display/JENKINS/Changelog#Version5.6.2(Dec19,2018))
-
-- [Version 5.6.1](https://wiki.jenkins.io/display/JENKINS/Changelog#Version5.6.1(Dec18,2018))
-
-- [Version 5.5.2](https://wiki.jenkins.io/display/JENKINS/Changelog#Version5.5.2Beta(Oct2,2018))
-
-- [Version 5.5.1](https://wiki.jenkins.io/display/JENKINS/Changelog#Version5.5.1(Sept12,2018))
-
 
 
 ## Supported Integrations
 
 
+This plugin supports the following OpenText product versions:
 
-This plugin supports the following Micro Focus product versions:
-
-| Micro Focus tool                                    | Supported versions                                           | Find more information...                                     |
+| OpenText tool                                    | Supported versions                                           | Find more information...                                     |
 | :-------------------------------------------------- | :----------------------------------------------------------- | ------------------------------------------------------------ |
-| ALM (Application Lifecycle Management)              | 12.xx, 15.x                                                  | [ALM Integration  page](https://admhelp.microfocus.com/alm/en/latest/online_help/Content/jenkins-integration.htm)                  |
-| ALM Lab Management                                  | 12.xx, 15.x                                                  | [ALM Integration page](https://admhelp.microfocus.com/alm/en/latest/online_help/Content/jenkins-integration.htm#mt-item-3) |
+| ALM (Application Lifecycle Management)              | 12.xx, 15.x, 16.x, 17.x, 24.x                                                  | [ALM Integration  page](https://admhelp.microfocus.com/alm/en/latest/online_help/Content/jenkins-integration.htm)                  |
+| ALM Lab Management                                  | 12.xx, 15.x, 16.x, 17.x, 24.x                                                | [ALM Integration page](https://admhelp.microfocus.com/alm/en/latest/online_help/Content/jenkins-integration.htm#mt-item-3) |
 | ALM Octane                                          | 12.53.20 and higher (12.55.4 or later required for direct UFT One integration and for LoadRunner Enterprise integration using pipelines) | [ALM Octane Help Center](https://admhelp.microfocus.com/octane/en/latest/Online/Content/AdminGuide/jenkins-integration.htm) |
-| Model-based Testing                                 | 16.0.300 and higher  | [Model-Based Testing Help Center](https://admhelp.microfocus.com/mbt) |
-| LoadRunner Professional                             | 12.xx, 2020 and higher                                       | [LoadRunner Professional Integration page](https://admhelp.microfocus.com/lr/en/latest/help/WebHelp/Content/Controller/c_jenkins.htm)             |
-| UFT Mobile                                          | 2.0 and higher                                               | [UFT Mobile Integration page](https://admhelp.microfocus.com/lr/en/latest/help/WebHelp/Content/Controller/c_jenkins.htm) |
 | LoadRunner Enterprise                               | 12.xx (12.53 or higher required for trend reports), 2020 and higher     | [LoadRunner Enterprise Help Center](https://admhelp.microfocus.com/lre/en/latest/online_help/Content/PC/Continuous-Integration-Jenkins.htm) |
+| LoadRunner Professional                             | 12.xx, 2020 and higher                                       | [LoadRunner Professional Integration page](https://admhelp.microfocus.com/lr/en/latest/help/WebHelp/Content/Controller/c_jenkins.htm)             |
+| Model-based Testing                                 | 16.0.300 and higher  | [Model-Based Testing Help Center](https://admhelp.microfocus.com/mbt) |
 | Service Virtualization                              | 3.80 and higher                                              | [Service Virtualization Help Center](https://admhelp.microfocus.com/sv/en/latest/Help/Content/UG/c_continuous_integration.htm) |
-| UFT One                                             | 12.xx and 14.03 and higher                                   | [UFT One Help Center](https://admhelp.microfocus.com/uft/en/latest/UFT_Help/Content/User_Guide/Jenkins.htm) |
 | UFT Developer                                       | 14.03 and higher                                             | [UFT Developer Help Center](https://admhelp.microfocus.com/uftdev/en/latest/HelpCenter/Content/HowTo/CI_Tools.htm)<br />Blog: [Integrate LeanFT with Jenkins in just a few simple steps](https://community.microfocus.com/adtd/b/sws-alm/posts/integrating-leanft-with-jenkins-in-just-a-few-simple-steps) |
+| Digital Lab (UFT Mobile)                                          | 2.0 and higher                                               | [Digital Lab Integration page](https://admhelp.microfocus.com/digitallab/en/latest/Content/CI_jenkins.htm) |
+| UFT One                                             | 12.xx and 14.03 and higher                                   | [UFT One Help Center](https://admhelp.microfocus.com/uft/en/latest/UFT_Help/Content/User_Guide/Jenkins.htm) |
+| ValueEdge                                             |                               | [ValueEdge Help Center](https://admhelp.microfocus.com/valuedge) |
 
 ## Prerequisites
 
@@ -127,9 +108,9 @@ This plugin supports the following Micro Focus product versions:
 7. **For building and tracking pipelines on ALM Octane:**
 
    *  JQuery Plugin 1.7.2-1 or later (Required to enable the integration)
-   *  A plugin that enables publishing test results. For example, JUnit Plugin 1.10 or later, NUnit plugin, and so on (Required to enable ALM Octane to collect your automated test results).
+   *  A plugin that enables publishing test results. For example, JUnit Plugin 1.10 or later, NUnit plugin, and so on (Required to enable ALM Octane/ValuEdge  to collect your automated test results).
 
-8. **For ALM Octane integration with UFT One**, make sure you have version 2.4.4 or higher of the Git plugin.
+8. **For ALM Octane/ValueEdge integration with UFT One**, make sure you have version 2.4.4 or higher of the Git plugin.
 
 # User Guide
 
@@ -180,7 +161,7 @@ To connect and execution node to the Jenkins machine:
 
 ### Generate pipeline code
 
-To set up a pipeline test job for your Micro Focus testing tool:
+To set up a pipeline test job for your OpenText testing tool:
 
   1. From Jenkins Dashboard. click  **New Item**  or select an existing one.
 
@@ -232,7 +213,7 @@ The available Pipeline job types are: loadRunnerTest, uftScenarioLoad, runFromFS
 | Service Virtualization | svUndeployStep               | Undeploy a virtual service.                                        |
 | UFT One, ALM, ALM LM   | publishMicroFocusTestResults | Publish Test Results for FS, ALM and ALM Lab Management executions. |                                   |
 
-Pipeline jobs are not supported for UFT Mobile uploads, ALM test uploader, and ALM AUT job types.
+Pipeline jobs are not supported for Digital Lab (formerly UFT Mobile) uploads, ALM test uploader, and ALM AUT job types.
 
 
 

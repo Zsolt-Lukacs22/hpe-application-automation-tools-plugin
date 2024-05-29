@@ -1,40 +1,43 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
 using HpToolsLauncher.Properties;
 using HpToolsLauncher.RTS;
 using HpToolsLauncher.TestRunners;
+using HpToolsLauncher.Utils;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace HpToolsLauncher
 {
@@ -48,16 +51,20 @@ namespace HpToolsLauncher
 
     public class Launcher
     {
+        private IAssetRunner _runner;
         private IXmlBuilder _xmlBuilder;
         private bool _ciRun = false;
-        private readonly string _paramFileName = null;
         private readonly JavaProperties _ciParams = new JavaProperties();
         private TestStorageType _runType;
-        private readonly string _failOnUftTestFailed;
         private static ExitCodeEnum _exitCode = ExitCodeEnum.Passed;
         private const string _dateFormat = "dd'/'MM'/'yyyy HH':'mm':'ss";
-        private bool _rerunFailedTests = false;
         private string _encoding;
+        private const string PASSWORD = "Password";
+        private const string RERUN_ALL_TESTS = "Rerun the entire set of tests";
+        private const string RERUN_SPECIFIC_TESTS = "Rerun specific tests in the build";
+        private const string RERUN_FAILED_TESTS = "Rerun only failed tests";
+        private const string ONE = "1";
+        private const string CLEANUP_TEST = "CleanupTest";
 
         public const string ClassName = "HPToolsFileSystemRunner";
 
@@ -77,6 +84,7 @@ namespace HpToolsLauncher
                                  "almRunMode",
                                  "almTimeout",
                                  "almRunHost"};
+        private readonly char[] _colon_semicolon = ",;".ToCharArray();
 
         /// <summary>
         /// a place to save the unique timestamp which shows up in properties/results/abort file names
@@ -105,17 +113,14 @@ namespace HpToolsLauncher
         /// <summary>
         /// constructor
         /// </summary>
-        /// <param name="failOnTestFailed"></param>
         /// <param name="paramFileName"></param>
         /// <param name="runType"></param>
-        public Launcher(string failOnTestFailed, string paramFileName, TestStorageType runType, string encoding = "UTF-8")
+        public Launcher(string paramFileName, TestStorageType runType, string encoding = "UTF-8")
         {
             _runType = runType;
             if (paramFileName != null)
                 _ciParams.Load(paramFileName);
-            _paramFileName = paramFileName;
 
-            _failOnUftTestFailed = string.IsNullOrEmpty(failOnTestFailed) ? "N" : failOnTestFailed;
             _encoding = encoding;
         }
 
@@ -126,6 +131,14 @@ namespace HpToolsLauncher
         private static void WriteToConsole(string message)
         {
             ConsoleWriter.WriteLine(message);
+        }
+
+        public void SafelyCancel()
+        {
+            if (_runner != null)
+            {
+                _runner.SafelyCancel();
+            }
         }
 
         /// <summary>
@@ -149,91 +162,90 @@ namespace HpToolsLauncher
             }
             string resultsFilename = _ciParams["resultsFilename"];
 
-            UniqueTimeStamp = _ciParams.ContainsKey("uniqueTimeStamp") ? _ciParams["uniqueTimeStamp"] : resultsFilename.ToLower().Replace("results", string.Empty).Replace(".xml", string.Empty);
-
-            List<TestData> failedTests = new List<TestData>();
+            UniqueTimeStamp = _ciParams.GetOrDefault("uniqueTimeStamp", resultsFilename.ToLower().Replace("results", string.Empty).Replace(".xml", string.Empty));
 
             //run the entire set of test once
             //create the runner according to type
-            IAssetRunner runner = CreateRunner(_runType, true, failedTests);
+            _runner = CreateRunner(true);
 
             //runner instantiation failed (no tests to run or other problem)
-            if (runner == null)
+            if (_runner == null)
             {
                 ConsoleWriter.WriteLine("empty runner;");
                 Environment.Exit((int)ExitCodeEnum.Failed);
                 return;
             }
 
-            TestSuiteRunResults results = runner.Run();
+            TestSuiteRunResults results = _runner.Run();
 
+            string onCheckFailedTests = _ciParams.GetOrDefault("onCheckFailedTest");
+            bool rerunTestsOnFailure = !string.IsNullOrEmpty(onCheckFailedTests) && Convert.ToBoolean(onCheckFailedTests.ToLower());
             if (_runType != TestStorageType.MBT)
             {
-                RunSummary(runner, resultsFilename, results);
+                RunSummary(resultsFilename, results);
             }
 
-            if (_runType.Equals(TestStorageType.FileSystem))
+            if (_runType == TestStorageType.FileSystem)
             {
-                string onCheckFailedTests = (_ciParams.ContainsKey("onCheckFailedTest") ? _ciParams["onCheckFailedTest"] : string.Empty);
-
-                _rerunFailedTests = !string.IsNullOrEmpty(onCheckFailedTests) && Convert.ToBoolean(onCheckFailedTests.ToLower());
-
                 //the "On failure" option is selected and the run build contains failed tests
                 // we need to check if there were any failed tests
-
-                if (_rerunFailedTests && (_exitCode == ExitCodeEnum.Failed || results.NumFailures > 0))
+                bool thereAreFailedTests = _exitCode == ExitCodeEnum.Failed || results.NumFailures > 0;
+                if (rerunTestsOnFailure && thereAreFailedTests)
                 {
                     ConsoleWriter.WriteLine("There are failed tests.");
 
+                    string fsTestType = _ciParams.GetOrDefault("testType");
+
                     //rerun the selected tests (either the entire set, just the selected tests or only the failed tests)
                     List<TestRunResults> runResults = results.TestRuns;
+                    List<TestInfo> reruntests = new List<TestInfo>();
                     int index = 0;
                     foreach (var item in runResults)
                     {
-                        if (item.TestState == TestState.Failed || item.TestState == TestState.Error)
+                        if ((fsTestType == RERUN_ALL_TESTS) ||
+                            (fsTestType == RERUN_FAILED_TESTS && (item.TestState == TestState.Failed || item.TestState == TestState.Error)))
                         {
                             index++;
-                            failedTests.Add(new TestData(item.TestPath, string.Format("FailedTest{0}", index)));
+                            reruntests.Add(new TestInfo(string.Format("FailedTest{0}", index), item.TestInfo));
                         }
                     }
+                    if (fsTestType == RERUN_SPECIFIC_TESTS)
+                    {
+                        var specificTests = GetValidTests("FailedTest", Resources.LauncherNoFailedTestsFound, Resources.LauncherNoValidFailedTests, fsTestType);
+                        reruntests = FileSystemTestsRunner.GetListOfTestInfo(specificTests);
+                    }
 
-                    // save the initial XmlBuilder because it contains testcases already created, in order to speed up the report building
-                    JunitXmlBuilder initialXmlBuilder = ((RunnerBase)runner).XmlBuilder;
                     //create the runner according to type
-                    runner = CreateRunner(_runType, false, failedTests);
+                    _runner = CreateRunner(false, reruntests, (RunnerBase)_runner);
 
                     //runner instantiation failed (no tests to run or other problem)
-                    if (runner == null)
+                    if (_runner == null)
                     {
                         Environment.Exit((int)ExitCodeEnum.Failed);
                         return;
                     }
+                    TestSuiteRunResults rerunResults = _runner.Run();
 
-                    ((RunnerBase)runner).XmlBuilder = initialXmlBuilder; // reuse the populated initialXmlBuilder because it contains testcases already created, in order to speed up the report building
-                    TestSuiteRunResults rerunResults = runner.Run();
-
-                    results.AppendResults(rerunResults);
-                    RunSummary(runner, resultsFilename, results);
+                    RunSummary(resultsFilename, results, rerunResults);
                 }
-
-                Environment.Exit((int)_exitCode);
             }
+            Environment.Exit((int)_exitCode);
         }
 
         /// <summary>
         /// creates the correct runner according to the given type
         /// </summary>
-        /// <param name="runType"></param>
-        /// <param name="initialTestRun"></param>
-        private IAssetRunner CreateRunner(TestStorageType runType, bool initialTestRun, List<TestData> failedTests)
+        /// <param name="isFirstRun"></param>
+        private IAssetRunner CreateRunner(bool isFirstRun, List<TestInfo> reruntests = null, RunnerBase initialRunnerBase = null)
         {
             IAssetRunner runner = null;
 
-            switch (runType)
+            switch (_runType)
             {
                 case TestStorageType.AlmLabManagement:
 
                 case TestStorageType.Alm:
+                { 
                     //check that all required parameters exist
                     foreach (string param1 in requiredParamsForQcRun)
                     {
@@ -271,17 +283,17 @@ namespace HpToolsLauncher
                         return null;
                     }
 
-                    List<TestParameter> parameters = GetValidParams();
+                    List<TestParameter> @params = GetValidParams();
 
                     //check if filterTests flag is selected; if yes apply filters on the list
                     bool isFilterSelected;
-                    string filter = _ciParams.ContainsKey("FilterTests") ? _ciParams["FilterTests"] : string.Empty;
+                    string filter = _ciParams.GetOrDefault("FilterTests");
 
                     isFilterSelected = !string.IsNullOrEmpty(filter) && Convert.ToBoolean(filter.ToLower());
 
-                    string filterByName = _ciParams.ContainsKey("FilterByName") ? _ciParams["FilterByName"] : string.Empty;
+                    string filterByName = _ciParams.GetOrDefault("FilterByName");
 
-                    string statuses = _ciParams.ContainsKey("FilterByStatus") ? _ciParams["FilterByStatus"] : string.Empty;
+                    string statuses = _ciParams.GetOrDefault("FilterByStatus");
 
                     List<string> filterByStatuses = new List<string>();
 
@@ -298,47 +310,56 @@ namespace HpToolsLauncher
                     }
 
                     bool isSSOEnabled = _ciParams.ContainsKey("SSOEnabled") ? Convert.ToBoolean(_ciParams["SSOEnabled"]) : false;
-                    string clientID = _ciParams.ContainsKey("almClientID") ? _ciParams["almClientID"] : string.Empty;
-                    string apiKey = _ciParams.ContainsKey("almApiKeySecret") ? EncryptionUtils.Decrypt(_ciParams["almApiKeySecret"]) : string.Empty;
-                    string almRunHost = _ciParams.ContainsKey("almRunHost") ? _ciParams["almRunHost"] : string.Empty;
+                    string clientID = _ciParams.GetOrDefault("almClientID");
+                    string apiKey = _ciParams.ContainsKey("almApiKeySecret") ? Encrypter.Decrypt(_ciParams["almApiKeySecret"]) : string.Empty;
+                    string almRunHost = _ciParams.GetOrDefault("almRunHost");
 
                     //create an Alm runner
                     runner = new AlmTestSetsRunner(_ciParams["almServerUrl"],
                                      _ciParams["almUsername"],
-                                     EncryptionUtils.Decrypt(_ciParams["almPassword"]),
+                                     Encrypter.Decrypt(_ciParams["almPassword"]),
                                      _ciParams["almDomain"],
                                      _ciParams["almProject"],
                                      dblQcTimeout,
                                      enmQcRunMode,
                                      almRunHost,
                                      sets,
-                                     parameters,
+                                     @params,
                                      isFilterSelected,
                                      filterByName,
                                      filterByStatuses,
-                                     initialTestRun,
-                                     runType,
+                                     isFirstRun,
+                                     _runType,
                                      isSSOEnabled,
                                      clientID, apiKey);
                     break;
+                }
                 case TestStorageType.FileSystem:
-                    bool displayController = _ciParams.ContainsKey("displayController") && _ciParams["displayController"] == "1";
-                    string analysisTemplate = (_ciParams.ContainsKey("analysisTemplate") ? _ciParams["analysisTemplate"] : string.Empty);
+                { 
+                    bool displayController = _ciParams.GetOrDefault("displayController") == ONE;
+                    string analysisTemplate = _ciParams.GetOrDefault("analysisTemplate");
 
-                    List<TestData> validBuildTests = GetValidTests("Test", Resources.LauncherNoTestsFound, Resources.LauncherNoValidTests, string.Empty);
-                    List<TestParameter> validParams = GetValidParams();
-
-                    if (validBuildTests.Count == 0)
+                    bool printInputParams = _ciParams.GetOrDefault("printTestParams", ONE) == ONE;
+                    IEnumerable<string> jenkinsEnvVarsWithCommas = GetParamsWithPrefix("JenkinsEnv");
+                    Dictionary<string, string> jenkinsEnvVars = new Dictionary<string, string>();
+                    foreach (string var in jenkinsEnvVarsWithCommas)
                     {
-                        Environment.Exit((int)ExitCodeEnum.Failed);
+                        string[] nameVal = var.Split(_colon_semicolon);
+                        jenkinsEnvVars.Add(nameVal[0], nameVal[1]);
                     }
 
                     //add build tests and cleanup tests in correct order
                     List<TestData> validTests = new List<TestData>();
+                    List<TestInfo> cleanupAndRerunTests = new List<TestInfo>();
 
-                    if (!_rerunFailedTests)
+                    if (isFirstRun)
                     {
                         ConsoleWriter.WriteLine("Run build tests");
+                        List<TestData> validBuildTests = GetValidTests("Test", Resources.LauncherNoTestsFound, Resources.LauncherNoValidTests, string.Empty);
+                        if (validBuildTests.Count == 0)
+                        {
+                            Environment.Exit((int)ExitCodeEnum.Failed);
+                        }
 
                         //run only the build tests
                         foreach (var item in validBuildTests)
@@ -348,14 +369,8 @@ namespace HpToolsLauncher
                     }
                     else
                     { //add also cleanup tests
-                        string fsTestType = (_ciParams.ContainsKey("testType") ? _ciParams["testType"] : string.Empty);
-
-                        List<TestData> validFailedTests = GetValidTests("FailedTest", Resources.LauncherNoFailedTestsFound, Resources.LauncherNoValidFailedTests, fsTestType);
-                        List<TestData> validCleanupTests = new List<TestData>();
-                        if (GetValidTests("CleanupTest", Resources.LauncherNoCleanupTestsFound, Resources.LauncherNoValidCleanupTests, fsTestType).Count > 0)
-                        {
-                            validCleanupTests = GetValidTests("CleanupTest", Resources.LauncherNoCleanupTestsFound, Resources.LauncherNoValidCleanupTests, fsTestType);
-                        }
+                        string fsTestType = _ciParams.GetOrDefault("testType");
+                        List<TestData> validCleanupTests = GetValidTests(CLEANUP_TEST, Resources.LauncherNoCleanupTestsFound, Resources.LauncherNoValidCleanupTests, fsTestType);
                         List<string> reruns = GetParamsWithPrefix("Reruns");
                         List<int> numberOfReruns = new List<int>();
                         foreach (var item in reruns)
@@ -373,64 +388,54 @@ namespace HpToolsLauncher
                         {
                             switch (fsTestType)
                             {
-                                case "Rerun the entire set of tests": ConsoleWriter.WriteLine("The entire test set will run again."); break;
-                                case "Rerun specific tests in the build": ConsoleWriter.WriteLine("Only the selected tests will run again."); break;
-                                case "Rerun only failed tests": ConsoleWriter.WriteLine("Only the failed tests will run again."); break;
+                                case RERUN_ALL_TESTS: ConsoleWriter.WriteLine("The entire test set will run again."); break;
+                                case RERUN_SPECIFIC_TESTS: ConsoleWriter.WriteLine("Only the selected tests will run again."); break;
+                                case RERUN_FAILED_TESTS: ConsoleWriter.WriteLine("Only the failed tests will run again."); break;
                             }
 
                             for (int i = 0; i < numberOfReruns.Count; i++)
                             {
-                                var currentRerun = numberOfReruns.ElementAt(i);
+                                var currentRerun = numberOfReruns[i];
 
-                                if (fsTestType.Equals("Rerun the entire set of tests"))
+                                if (fsTestType == RERUN_ALL_TESTS || fsTestType == RERUN_FAILED_TESTS)
                                 {
                                     while (currentRerun > 0)
                                     {
                                         if (validCleanupTests.Count > 0)
                                         {
-                                            validTests.Add(validCleanupTests.ElementAt(i));
+                                            var cleanupTest = FileSystemTestsRunner.GetFirstTestInfo(validCleanupTests[i], jenkinsEnvVars);
+                                            if (cleanupTest != null)
+                                                cleanupAndRerunTests.Add(cleanupTest);
                                         }
 
-                                        foreach (var item in validFailedTests)
+                                        if (reruntests.Count > 0)
                                         {
-                                            validTests.Add(item);
-                                        }
-
-                                        currentRerun--;
-                                    }
-                                }
-
-                                if (fsTestType.Equals("Rerun specific tests in the build"))
-                                {
-                                    while (currentRerun > 0)
-                                    {
-                                        if (validCleanupTests.Count > 0)
-                                        {
-                                            validTests.Add(validCleanupTests.ElementAt(i));
-                                        }
-
-                                        validTests.Add(validFailedTests.ElementAt(i));
-
-                                        currentRerun--;
-                                    }
-                                }
-
-                                if (fsTestType.Equals("Rerun only failed tests"))
-                                {
-                                    while (currentRerun > 0)
-                                    {
-                                        if (validCleanupTests.Count > 0)
-                                        {
-                                            validTests.Add(validCleanupTests.ElementAt(i));
-                                        }
-
-                                        if (failedTests.Count != 0)
-                                        {
-                                            validTests.AddRange(failedTests);
+                                            cleanupAndRerunTests.AddRange(reruntests);
                                         }
                                         else
                                         {
-                                            Console.WriteLine("There are no failed tests to rerun.");
+                                            Console.WriteLine(fsTestType == RERUN_ALL_TESTS ? "There are no tests to rerun." : "There are no failed tests to rerun.");
+                                            break;
+                                        }
+
+                                        currentRerun--;
+                                    }
+                                }
+                                else if (fsTestType == RERUN_SPECIFIC_TESTS)
+                                {
+                                    while (currentRerun > 0)
+                                    {
+                                        if (validCleanupTests.Count > 0)
+                                        {
+                                            var cleanupTest = FileSystemTestsRunner.GetFirstTestInfo(validCleanupTests[i], jenkinsEnvVars);
+                                            if (cleanupTest != null)
+                                                cleanupAndRerunTests.Add(cleanupTest);
+                                        }
+                                        if (reruntests != null && reruntests.Count > i)
+                                            cleanupAndRerunTests.Add(reruntests[i]);
+                                        else
+                                        {
+                                            Console.WriteLine(string.Format("There is no specific test with index = {0}", i + 1));
                                             break;
                                         }
 
@@ -441,16 +446,6 @@ namespace HpToolsLauncher
                         }
                     }
 
-                    //get the tests
-                    //IEnumerable<string> tests = GetParamsWithPrefix("Test");
-
-                    IEnumerable<string> jenkinsEnvVariablesWithCommas = GetParamsWithPrefix("JenkinsEnv");
-                    Dictionary<string, string> jenkinsEnvVariables = new Dictionary<string, string>();
-                    foreach (string var in jenkinsEnvVariablesWithCommas)
-                    {
-                        string[] nameVal = var.Split(",;".ToCharArray());
-                        jenkinsEnvVariables.Add(nameVal[0], nameVal[1]);
-                    }
                     //parse the timeout into a TimeSpan
                     TimeSpan timeout = TimeSpan.MaxValue;
                     if (_ciParams.ContainsKey("fsTimeout"))
@@ -497,133 +492,19 @@ namespace HpToolsLauncher
                     }
 
                     //--MC connection info
-                    McConnectionInfo mcConnectionInfo = new McConnectionInfo();
-                    if (_ciParams.ContainsKey("MobileHostAddress"))
+                    McConnectionInfo mcConnectionInfo = null;
+                    try
                     {
-                        string mcServerUrl = _ciParams["MobileHostAddress"];
-
-                        if (!string.IsNullOrEmpty(mcServerUrl))
-                        {
-                            //url is something like http://xxx.xxx.xxx.xxx:8080
-                            string[] strArray = mcServerUrl.Split(new char[] { ':' });
-                            if (strArray.Length == 3)
-                            {
-                                mcConnectionInfo.MobileHostAddress = strArray[1].Replace("/", string.Empty);
-                                mcConnectionInfo.MobileHostPort = strArray[2];
-                            }
-
-                            //mc username
-                            if (_ciParams.ContainsKey("MobileUserName"))
-                            {
-                                string mcUsername = _ciParams["MobileUserName"];
-                                if (!string.IsNullOrEmpty(mcUsername))
-                                {
-                                    mcConnectionInfo.MobileUserName = mcUsername;
-                                }
-                            }
-
-                            //mc password
-                            if (_ciParams.ContainsKey("MobilePassword"))
-                            {
-                                string mcPassword = _ciParams["MobilePassword"];
-                                if (!string.IsNullOrEmpty(mcPassword))
-                                {
-                                    mcConnectionInfo.MobilePassword = EncryptionUtils.Decrypt(mcPassword);
-                                }
-                            }
-
-                            //mc tenantId
-                            if (_ciParams.ContainsKey("MobileTenantId"))
-                            {
-                                string mcTenantId = _ciParams["MobileTenantId"];
-                                if (!string.IsNullOrEmpty(mcTenantId))
-                                {
-                                    mcConnectionInfo.MobileTenantId = mcTenantId;
-                                }
-                            }
-                          
-                            //mc exec token	
-                            if (_ciParams.ContainsKey("MobileExecToken"))	
-                            {	
-                                var mcExecToken = _ciParams["MobileExecToken"];	
-                                if (!string.IsNullOrEmpty(mcExecToken))	
-                                {	
-                                    try	
-                                    {	
-                                        mcConnectionInfo.MobileExecToken = EncryptionUtils.Decrypt(mcExecToken);	
-                                    }	
-                                    catch (ArgumentException e)	
-                                    {	
-                                        ConsoleWriter.WriteErrLine(e.Message);	
-                                        Environment.Exit((int)ExitCodeEnum.Failed);	
-                                    }	
-                                }	
-                            }
-
-                            //ssl
-                            if (_ciParams.ContainsKey("MobileUseSSL"))
-                            {
-                                string mcUseSSL = _ciParams["MobileUseSSL"];
-                                if (!string.IsNullOrEmpty(mcUseSSL))
-                                {
-                                    mcConnectionInfo.MobileUseSSL = int.Parse(mcUseSSL);
-                                }
-                            }
-
-                            //Proxy enabled flag
-                            if (_ciParams.ContainsKey("MobileUseProxy"))
-                            {
-                                string useProxy = _ciParams["MobileUseProxy"];
-                                if (!string.IsNullOrEmpty(useProxy))
-                                {
-                                    mcConnectionInfo.MobileUseProxy = int.Parse(useProxy);
-                                }
-                            }
-
-                            //Proxy type
-                            if (_ciParams.ContainsKey("MobileProxyType"))
-                            {
-                                string proxyType = _ciParams["MobileProxyType"];
-                                if (!string.IsNullOrEmpty(proxyType))
-                                {
-                                    mcConnectionInfo.MobileProxyType = int.Parse(proxyType);
-                                }
-                            }
-
-                            //proxy address
-                            string proxyAddress = _ciParams.GetOrDefault("MobileProxySetting_Address");
-                            CheckAndSetMobileProxySettings(ref mcConnectionInfo, proxyAddress);
-
-                            //Proxy authentication
-                            if (_ciParams.ContainsKey("MobileProxySetting_Authentication"))
-                            {
-                                string proxyAuthentication = _ciParams["MobileProxySetting_Authentication"];
-                                if (!string.IsNullOrEmpty(proxyAuthentication))
-                                {
-                                    mcConnectionInfo.MobileProxySetting_Authentication = int.Parse(proxyAuthentication);
-                                }
-                            }
-
-                            //Proxy username
-                            if (_ciParams.ContainsKey("MobileProxySetting_UserName"))
-                            {
-                                string proxyUsername = _ciParams["MobileProxySetting_UserName"];
-                                if (!string.IsNullOrEmpty(proxyUsername))
-                                {
-                                    mcConnectionInfo.MobileProxySetting_UserName = proxyUsername;
-                                }
-                            }
-
-                            //Proxy password
-                            if (_ciParams.ContainsKey("MobileProxySetting_Password"))
-                            {
-                                string proxyPassword = _ciParams["MobileProxySetting_Password"];
-                                if (!string.IsNullOrEmpty(proxyPassword))
-                                {
-                                    mcConnectionInfo.MobileProxySetting_Password = EncryptionUtils.Decrypt(proxyPassword);
-                                }
-                            }
-                        }
+                        mcConnectionInfo = new McConnectionInfo(_ciParams);
+                    }
+                    catch(NoMcConnectionException)
+                    {
+                        // no action, the Test will use the default UFT One settings
+                    }
+                    catch (Exception ex)
+                    {
+                        ConsoleWriter.WriteErrLine(ex.Message);
+                        Environment.Exit((int)ExitCodeEnum.Failed);
                     }
 
                     // other mobile info
@@ -631,6 +512,12 @@ namespace HpToolsLauncher
                     if (_ciParams.ContainsKey("mobileinfo"))
                     {
                         mobileinfo = _ciParams["mobileinfo"];
+                    }
+                    CloudBrowser cloudBrowser = null;
+                    string strCloudBrowser = _ciParams.GetOrDefault("cloudBrowser").Trim();
+                    if (!strCloudBrowser.IsNullOrEmpty())
+                    {
+                         CloudBrowser.TryParse(strCloudBrowser, out cloudBrowser);
                     }
 
                     var parallelRunnerEnvironments = new Dictionary<string, List<string>>();
@@ -667,7 +554,7 @@ namespace HpToolsLauncher
                             fsReportPath = fsReportPath.Trim(new char[] { ' ', '\t' });
                             try
                             {
-                                reportPath = jenkinsEnvVariables[fsReportPath];
+                                reportPath = jenkinsEnvVars[fsReportPath];
                             }
                             catch (KeyNotFoundException)
                             {
@@ -679,21 +566,44 @@ namespace HpToolsLauncher
                         }
                     }
 
+                    RunAsUser uftRunAsUser = null;
+                    string username = _ciParams.GetOrDefault("uftRunAsUserName");
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        string encryptedAndEncodedPwd = _ciParams.GetOrDefault("uftRunAsUserEncodedPassword");
+                        string encryptedPwd = _ciParams.GetOrDefault("uftRunAsUserPassword");
+                        if (!string.IsNullOrEmpty(encryptedAndEncodedPwd))
+                        {
+                            string encodedPwd = Encrypter.Decrypt(encryptedAndEncodedPwd);
+                            uftRunAsUser = new RunAsUser(username, encodedPwd);
+                        }
+                        else if (!string.IsNullOrEmpty(encryptedPwd))
+                        {
+                            string plainTextPwd = Encrypter.Decrypt(encryptedPwd);
+                            uftRunAsUser = new RunAsUser(username, plainTextPwd.ToSecureString());
+                        }
+                    }
+
                     SummaryDataLogger summaryDataLogger = GetSummaryDataLogger();
                     List<ScriptRTSModel> scriptRTSSet = GetScriptRtsSet();
                     string resultsFilename = _ciParams["resultsFilename"];
-                    if (_ciParams.ContainsKey("fsUftRunMode"))
+                    string uftRunMode = _ciParams.GetOrDefault("fsUftRunMode", "Fast");
+                    if (validTests.Count > 0)
                     {
-                        string uftRunMode = _ciParams["fsUftRunMode"];
-                        runner = new FileSystemTestsRunner(validTests, validParams, timeout, uftRunMode, pollingInterval, perScenarioTimeOutMinutes, ignoreErrorStrings, jenkinsEnvVariables, mcConnectionInfo, mobileinfo, parallelRunnerEnvironments, displayController, analysisTemplate, summaryDataLogger, scriptRTSSet, reportPath, resultsFilename, _encoding);
+                        runner = new FileSystemTestsRunner(validTests, GetValidParams(), printInputParams, timeout, uftRunMode, pollingInterval, perScenarioTimeOutMinutes, ignoreErrorStrings, jenkinsEnvVars, new DigitalLab(mcConnectionInfo, mobileinfo, cloudBrowser), parallelRunnerEnvironments, displayController, analysisTemplate, summaryDataLogger, scriptRTSSet, reportPath, resultsFilename, _encoding, uftRunAsUser);
+                    }
+                    else if (cleanupAndRerunTests.Count > 0)
+                    {
+                        runner = new FileSystemTestsRunner(cleanupAndRerunTests, printInputParams, timeout, uftRunMode, pollingInterval, perScenarioTimeOutMinutes, ignoreErrorStrings, jenkinsEnvVars, new DigitalLab(mcConnectionInfo, mobileinfo, cloudBrowser), parallelRunnerEnvironments, displayController, analysisTemplate, summaryDataLogger, scriptRTSSet, reportPath, resultsFilename, _encoding, uftRunAsUser);
                     }
                     else
                     {
-                        runner = new FileSystemTestsRunner(validTests, validParams, timeout, pollingInterval, perScenarioTimeOutMinutes, ignoreErrorStrings, jenkinsEnvVariables, mcConnectionInfo, mobileinfo, parallelRunnerEnvironments, displayController, analysisTemplate, summaryDataLogger, scriptRTSSet, reportPath, resultsFilename, _encoding);
+                        ConsoleWriter.WriteLine(Resources.FsRunnerNoValidTests);
+                        Environment.Exit((int)ExitCodeEnum.Failed);
                     }
 
                     break;
-
+                }
                 case TestStorageType.MBT:
                     string parentFolder = _ciParams["parentFolder"];
                     string repoFolder = _ciParams["repoFolder"];
@@ -724,21 +634,13 @@ namespace HpToolsLauncher
                     runner = null;
                     break;
             }
-            return runner;
-        }
-
-        private void CheckAndSetMobileProxySettings(ref McConnectionInfo mcConnectionInfo, string proxyAddress)
-        {
-            if (!string.IsNullOrEmpty(proxyAddress))
+            if (runner != null && !isFirstRun)
             {
-                // data is something like "16.105.9.23:8080"
-                string[] strArrayForProxyAddress = proxyAddress.Split(new char[] { ':' });
-                if (strArrayForProxyAddress.Length == 2)
-                {
-                    mcConnectionInfo.MobileProxySetting_Address = strArrayForProxyAddress[0];
-                    mcConnectionInfo.MobileProxySetting_Port = int.Parse(strArrayForProxyAddress[1]);
-                }
+                RunnerBase rbase = (RunnerBase)runner;
+                rbase.XmlBuilder =  initialRunnerBase.XmlBuilder; // reuse the populated initialXmlBuilder because it contains testcases already created, in order to speed up the report building
+                rbase.IndexOfRptDirsByTestPath = initialRunnerBase.IndexOfRptDirsByTestPath;
             }
+            return runner;
         }
 
         private List<string> GetParamsWithPrefix(string prefix, bool skipEmptyEntries = false)
@@ -783,10 +685,9 @@ namespace HpToolsLauncher
         /// <summary>
         /// used by the run fuction to run the tests
         /// </summary>
-        /// <param name="runner"></param>
         /// <param name="resultsFile"></param>
         ///
-        private void RunSummary(IAssetRunner runner, string resultsFile, TestSuiteRunResults results)
+        private void RunSummary(string resultsFile, TestSuiteRunResults results, TestSuiteRunResults rerunResults = null)
         {
             try
             {
@@ -806,8 +707,9 @@ namespace HpToolsLauncher
 
                     _xmlBuilder.CreateXmlFromRunResults(results);
                 }
+                var allTestRuns = new List<TestRunResults>(results.TestRuns);
 
-                if (results.TestRuns.Count == 0)
+                if (allTestRuns.Count == 0)
                 {
                     ConsoleWriter.WriteLine(Resources.GeneralDoubleSeperator);
                     ConsoleWriter.WriteLine("No tests were run");
@@ -815,40 +717,21 @@ namespace HpToolsLauncher
                     Environment.Exit((int)_exitCode);
                 }
 
-                int numFailures = results.NumFailures;
-                int numSuccess = results.TestRuns.Count(t => t.TestState == TestState.Passed);
-                int numErrors = results.NumErrors;
-                int numWarnings = results.NumWarnings;
+                bool is4Rerun = rerunResults != null && rerunResults.TestRuns.Count > 0;
 
-                if (_exitCode != ExitCodeEnum.Aborted)
-				{
-                    //if there is an error
-                    if (numErrors > 0)
-                    {
-                        _exitCode = ExitCodeEnum.Failed;
-                    }
-
-                    if ((numErrors <= 0) && (numFailures > 0) && (numSuccess > 0))
-                    {
-                        _exitCode = ExitCodeEnum.Unstable;
-                    }
-                    else if ((numErrors <= 0) && (numFailures > 0))
-                    {
-                        _exitCode = ExitCodeEnum.Failed;
-                    }
-                    else if ((numErrors <= 0) && (numWarnings > 0))
-                    {
-                        _exitCode = ExitCodeEnum.Unstable;
-                    }
-
-                    foreach (var testRun in results.TestRuns)
-                    {
-                        if (testRun.FatalErrors > 0 && !string.IsNullOrWhiteSpace(testRun.TestPath))
-                        {
-                            _exitCode = ExitCodeEnum.Failed;
-                            break;
-                        }
-                    }
+                int failures, successes, errors, warnings;
+                if (is4Rerun)
+                {
+                    UpdateExitCode(rerunResults, out successes, out failures, out errors, out warnings);
+                    failures += results.NumFailures;
+                    successes += allTestRuns.Count(t => t.TestState == TestState.Passed);
+                    errors += results.NumErrors;
+                    warnings += results.NumWarnings;
+                    allTestRuns.AddRange(rerunResults.TestRuns);
+                }
+                else
+                {
+                    UpdateExitCode(results, out successes, out failures, out errors, out warnings);
                 }
 
                 //this is the total run summary
@@ -862,15 +745,15 @@ namespace HpToolsLauncher
                         break;
                     case ExitCodeEnum.Unstable:
 						{
-                            if (numFailures > 0 && numWarnings > 0)
+                            if (failures > 0 && warnings > 0)
                             {
                                 runStatus = "Job unstable (Passed with failed tests and generated warnings)";
                             }
-                            else if (numFailures > 0)
+                            else if (failures > 0)
                             {
                                 runStatus = "Job unstable (Passed with failed tests)";
                             }
-                            else if (numWarnings > 0)
+                            else if (warnings > 0)
                             {
                                 runStatus = "Job unstable (Generated warnings)";
                             }
@@ -888,45 +771,73 @@ namespace HpToolsLauncher
                         break;
                 }
 
-                ConsoleWriter.WriteLine(Resources.LauncherDoubleSeperator);
-                ConsoleWriter.WriteLine(string.Format(Resources.LauncherDisplayStatistics, runStatus, results.TestRuns.Count, numSuccess, numFailures, numErrors, numWarnings));
+                ConsoleWriter.WriteLine(Resources.LauncherDoubleSeparator);
+                ConsoleWriter.WriteLine(string.Format(Resources.LauncherDisplayStatistics, runStatus, allTestRuns.Count, successes, failures, errors, warnings));
 
                 int testIndex = 1;
-                if (!runner.RunWasCancelled)
+                if (!_runner.RunWasCancelled)
                 {
-                    results.TestRuns.ForEach(tr => { ConsoleWriter.WriteLine(((tr.HasWarnings) ? "Warning".PadLeft(7) : tr.TestState.ToString().PadRight(7)) + ": " + tr.TestPath + "[" + testIndex + "]"); testIndex++; });
+                    allTestRuns.ForEach(tr => { ConsoleWriter.WriteLine(((tr.HasWarnings) ? "Warning".PadLeft(7) : tr.TestState.ToString().PadRight(7)) + ": " + tr.TestPath + "[" + testIndex + "]"); testIndex++; });
 
-                    ConsoleWriter.WriteLine(Resources.LauncherDoubleSeperator);
+                    ConsoleWriter.WriteLine(Resources.LauncherDoubleSeparator);
 
                     if (ConsoleWriter.ErrorSummaryLines != null && ConsoleWriter.ErrorSummaryLines.Count > 0)
                     {
                         ConsoleWriter.WriteLine("Job Errors summary:");
                         ConsoleWriter.ErrorSummaryLines.ForEach(line => ConsoleWriter.WriteLine(line));
                     }
-
-                    string onCheckFailedTests = (_ciParams.ContainsKey("onCheckFailedTest") ? _ciParams["onCheckFailedTest"] : string.Empty);
-
-                    _rerunFailedTests = !string.IsNullOrEmpty(onCheckFailedTests) && Convert.ToBoolean(onCheckFailedTests.ToLower());
-
-                    if (!_rerunFailedTests)
-                    {
-                        Environment.Exit((int)_exitCode);
-                    }
-                }
-                else
-				{
-                    Environment.Exit((int)_exitCode);
                 }
             }
             finally
             {
                 try
                 {
-                    runner.Dispose();
+                    _runner.Dispose();
                 }
                 catch (Exception ex)
                 {
                     ConsoleWriter.WriteLine(string.Format(Resources.LauncherRunnerDisposeError, ex.Message));
+                }
+            }
+        }
+
+        private void UpdateExitCode(TestSuiteRunResults results, out int successes, out int failures, out int errors, out int warnings)
+        {
+            failures = results.NumFailures;
+            successes = results.TestRuns.Count(t => t.TestState == TestState.Passed);
+            errors = results.NumErrors;
+            warnings = results.NumWarnings;
+
+            if (_exitCode != ExitCodeEnum.Aborted)
+            {
+                if (errors > 0)
+                {
+                    _exitCode = ExitCodeEnum.Failed;
+                }
+                else if (failures > 0 && successes > 0)
+                {
+                    _exitCode = ExitCodeEnum.Unstable;
+                }
+                else if (failures > 0)
+                {
+                    _exitCode = ExitCodeEnum.Failed;
+                }
+                else if (warnings > 0)
+                {
+                    _exitCode = ExitCodeEnum.Unstable;
+                }
+                else if (successes > 0)
+                {
+                    _exitCode = ExitCodeEnum.Passed;
+                }
+
+                foreach (var testRun in results.TestRuns)
+                {
+                    if (testRun.FatalErrors > 0 && !string.IsNullOrWhiteSpace(testRun.TestPath))
+                    {
+                        _exitCode = ExitCodeEnum.Failed;
+                        break;
+                    }
                 }
             }
         }
@@ -949,9 +860,9 @@ namespace HpToolsLauncher
                     }
 
                     summaryDataLogger = new SummaryDataLogger(
-                        summaryDataLogFlags[0].Equals("1"),
-                        summaryDataLogFlags[1].Equals("1"),
-                        summaryDataLogFlags[2].Equals("1"),
+                        summaryDataLogFlags[0] == ONE,
+                        summaryDataLogFlags[1] == ONE,
+                        summaryDataLogFlags[2] == ONE,
                         summaryDataLoggerPollingInterval
                     );
                 }
@@ -1001,17 +912,17 @@ namespace HpToolsLauncher
         /// <summary>
         /// Retrieve the list of valid test to run
         /// </summary>
-        /// <param name="propertiesParameter"></param>
+        /// <param name="propPrefix"></param>
         /// <param name="errorNoTestsFound"></param>
         /// <param name="errorNoValidTests"></param>
         /// <returns>a list of tests</returns>
-        private List<TestData> GetValidTests(string propertiesParameter, string errorNoTestsFound, string errorNoValidTests, string fsTestType)
+        private List<TestData> GetValidTests(string propPrefix, string errorNoTestsFound, string errorNoValidTests, string fsTestType)
         {
-            if (fsTestType != "Rerun only failed tests" || propertiesParameter == "CleanupTest")
+            if (fsTestType != RERUN_FAILED_TESTS || propPrefix == CLEANUP_TEST)
             {
                 List<TestData> tests = new List<TestData>();
-                Dictionary<string, string> testsKeyValue = GetKeyValuesWithPrefix(propertiesParameter);
-                if (propertiesParameter == "CleanupTest" && testsKeyValue.Count == 0)
+                Dictionary<string, string> testsKeyValue = GetKeyValuesWithPrefix(propPrefix);
+                if (propPrefix == CLEANUP_TEST && testsKeyValue.Count == 0)
                 {
                     return tests;
                 }
@@ -1025,13 +936,15 @@ namespace HpToolsLauncher
                 {
                     WriteToConsole(errorNoTestsFound);
                 }
+                else
+                {
+                    List<TestData> validTests = Helper.ValidateFiles(tests);
 
-                List<TestData> validTests = Helper.ValidateFiles(tests);
+                    if (validTests.Count > 0) return validTests;
 
-                if (tests.Count <= 0 || validTests.Count != 0) return validTests;
-
-                //no valid tests found
-                ConsoleWriter.WriteLine(errorNoValidTests);
+                    //no valid tests found
+                    ConsoleWriter.WriteLine(errorNoValidTests);
+                }
             }
 
             return new List<TestData>();
@@ -1069,6 +982,10 @@ namespace HpToolsLauncher
                         ConsoleWriter.WriteLine(string.Format("Found no type associated with parameter {0}.", name));
                         continue;
                     }
+                    else if (type == PASSWORD && !string.IsNullOrWhiteSpace(val))
+                    {
+                        val = Encrypter.Decrypt(val);
+                    }
 
                     parameters.Add(new TestParameter(i, name, val, type.ToLower()));
                     ++j;
@@ -1096,5 +1013,4 @@ namespace HpToolsLauncher
             return noRerunsSet;
         }
     }
-
 }

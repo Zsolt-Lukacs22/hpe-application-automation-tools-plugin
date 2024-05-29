@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -34,6 +38,9 @@ using System.Reflection;
 using HpToolsLauncher.Properties;
 using HpToolsLauncher.TestRunners;
 using HpToolsLauncher.RTS;
+using System.Threading;
+using System.Linq;
+using HpToolsLauncher.Utils;
 
 namespace HpToolsLauncher
 {
@@ -41,9 +48,7 @@ namespace HpToolsLauncher
     {
         #region Members
 
-        Dictionary<string, string> _jenkinsEnvVariables;
         private List<TestInfo> _tests;
-        private List<TestParameter> _parameters;
         private static string _uftViewerPath;
         private int _errors, _fail, _warnings;
         private bool _useUFTLicense;
@@ -52,9 +57,9 @@ namespace HpToolsLauncher
         private SummaryDataLogger _summaryDataLogger;
         private List<ScriptRTSModel> _scriptRTSSet;
         private TimeSpan _timeout = TimeSpan.MaxValue;
-        private readonly string _uftRunMode;
+        private string _uftRunMode;
         private Stopwatch _stopwatch = null;
-        private string _abortFilename = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\stop" + Launcher.UniqueTimeStamp + ".txt";
+        private string _abortFilename = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\stop" + Launcher.UniqueTimeStamp + ".txt";
         private string _encoding;
 
         //LoadRunner Arguments
@@ -68,40 +73,24 @@ namespace HpToolsLauncher
         //saves runners for cleaning up at the end.
         private Dictionary<TestType, IFileSysTestRunner> _colRunnersForCleanup = new Dictionary<TestType, IFileSysTestRunner>();
 
-        private McConnectionInfo _mcConnection;
-        private string _mobileInfoForAllGuiTests;
+        private DigitalLab _digitalLab;
+        private bool _printInputParams;
+        private RunAsUser _uftRunAsUser;
+        private IFileSysTestRunner _runner = null;
 
-		#endregion
+        private const string REPORT = "Report";
+        private const string REPORT1 = "Report1";
+        private const string SPACES = "    ";
 
-		/// <summary>
-		/// overloaded constructor for adding support for run mode selection
-		/// </summary>
-		/// <param name="sources"></param>
-		/// <param name="timeout"></param>
-		/// <param name="uftRunMode"></param>
-		/// <param name="reportPath"></param>
-		/// <param name="useUftLicense"></param>
-		/// <param name="controllerPollingInterval"></param>
-		/// <param name="perScenarioTimeOutMinutes"></param>
-		/// <param name="ignoreErrorStrings"></param>
-		/// <param name="jenkinsEnvVariables"></param>
-		/// <param name="mcConnection"></param>
-		/// <param name="mobileInfo"></param>
-		/// <param name="parallelRunnerEnvironments"></param>
-		/// <param name="displayController"></param>
-		/// <param name="analysisTemplate"></param>
-		/// <param name="summaryDataLogger"></param>
-		/// <param name="scriptRtsSet"></param>
-		public FileSystemTestsRunner(List<TestData> sources,
-                                    List<TestParameter> parameters,
+        #endregion
+
+        private void InitCommonFields(bool printInputParams,
                                     TimeSpan timeout,
                                     string uftRunMode,
                                     int controllerPollingInterval,
                                     TimeSpan perScenarioTimeOutMinutes,
                                     List<string> ignoreErrorStrings,
-                                    Dictionary<string, string> jenkinsEnvVariables,
-                                    McConnectionInfo mcConnection,
-                                    string mobileInfo,
+                                    DigitalLab digitalLab,
                                     Dictionary<string, List<string>> parallelRunnerEnvironments,
                                     bool displayController,
                                     string analysisTemplate,
@@ -110,50 +99,9 @@ namespace HpToolsLauncher
                                     string reportPath,
                                     string xmlResultsFullFileName,
                                     string encoding,
-                                    bool useUftLicense = false)
-            : this(sources, parameters, timeout, controllerPollingInterval, perScenarioTimeOutMinutes, ignoreErrorStrings, jenkinsEnvVariables, mcConnection, mobileInfo, parallelRunnerEnvironments, displayController, analysisTemplate, summaryDataLogger, scriptRtsSet, reportPath, xmlResultsFullFileName, encoding, useUftLicense)
-        {
-            _uftRunMode = uftRunMode;
-        }
-
-        /// <summary>
-        /// creates instance of the runner given a source.
-        /// </summary>
-        /// <param name="sources"></param>
-        /// <param name="timeout"></param>
-        /// <param name="scriptRtsSet"></param>
-        /// <param name="reportPath"></param>
-        /// <param name="controllerPollingInterval"></param>
-        /// <param name="perScenarioTimeOutMinutes"></param>
-        /// <param name="ignoreErrorStrings"></param>
-        /// <param name="jenkinsEnvVariables"></param>
-        /// <param name="mcConnection"></param>
-        /// <param name="mobileInfo"></param>
-        /// <param name="parallelRunnerEnvironments"></param>
-        /// <param name="displayController"></param>
-        /// <param name="analysisTemplate"></param>
-        /// <param name="summaryDataLogger"></param>
-        /// <param name="useUftLicense"></param>
-        public FileSystemTestsRunner(List<TestData> sources,
-                                    List<TestParameter> parameters,
-                                    TimeSpan timeout,
-                                    int controllerPollingInterval,
-                                    TimeSpan perScenarioTimeOutMinutes,
-                                    List<string> ignoreErrorStrings,
-                                    Dictionary<string, string> jenkinsEnvVariables,
-                                    McConnectionInfo mcConnection,
-                                    string mobileInfo,
-                                    Dictionary<string, List<string>> parallelRunnerEnvironments,
-                                    bool displayController,
-                                    string analysisTemplate,
-                                    SummaryDataLogger summaryDataLogger,
-                                    List<ScriptRTSModel> scriptRtsSet,
-                                    string reportPath,
-                                    string xmlResultsFullFileName,
-                                    string encoding,
+                                    RunAsUser uftRunAsUser,
                                     bool useUftLicense = false)
         {
-            _jenkinsEnvVariables = jenkinsEnvVariables;
             //search if we have any testing tools installed
             if (!Helper.IsTestingToolsInstalled(TestStorageType.FileSystem))
             {
@@ -174,22 +122,147 @@ namespace HpToolsLauncher
             _analysisTemplate = analysisTemplate;
             _summaryDataLogger = summaryDataLogger;
             _scriptRTSSet = scriptRtsSet;
-            _tests = new List<TestInfo>();
-            _parameters = parameters;
+            _printInputParams = printInputParams;
 
-            _mcConnection = mcConnection;
-            _mobileInfoForAllGuiTests = mobileInfo;
+            _digitalLab = digitalLab;
 
             _parallelRunnerEnvironments = parallelRunnerEnvironments;
             _xmlBuilder.XmlName = xmlResultsFullFileName;
             _encoding = encoding;
+            _uftRunAsUser = uftRunAsUser;
+            _uftRunMode = uftRunMode;
 
-            ConsoleWriter.WriteLine("UFT Mobile connection info is - " + _mcConnection.ToString());
+            if (_digitalLab.ConnectionInfo != null)
+                ConsoleWriter.WriteLine("Digital Lab connection info is - " + _digitalLab.ConnectionInfo.ToString());
 
             if (reportPath != null)
             {
                 ConsoleWriter.WriteLine("Results directory is: " + reportPath);
             }
+        }
+
+        /// <summary>
+        /// creates instance of the runner given a source.
+        /// </summary>
+        /// <param name="sources"></param>
+        /// <param name="timeout"></param>
+        /// <param name="uftRunMode"></param>
+        /// <param name="scriptRtsSet"></param>
+        /// <param name="reportPath"></param>
+        /// <param name="controllerPollingInterval"></param>
+        /// <param name="perScenarioTimeOutMinutes"></param>
+        /// <param name="ignoreErrMsgs"></param>
+        /// <param name="jenkinsEnvVars"></param>
+        /// <param name="mcConnection"></param>
+        /// <param name="mobileInfo"></param>
+        /// <param name="parallelRunnerEnvs"></param>
+        /// <param name="displayController"></param>
+        /// <param name="analysisTemplate"></param>
+        /// <param name="summaryDataLogger"></param>
+        /// <param name="useUftLicense"></param>
+        public FileSystemTestsRunner(List<TestData> sources,
+                                    List<TestParameter> @params,
+                                    bool printInputParams,
+                                    TimeSpan timeout,
+                                    string uftRunMode,
+                                    int controllerPollingInterval,
+                                    TimeSpan perScenarioTimeOutMinutes,
+                                    List<string> ignoreErrMsgs,
+                                    Dictionary<string, string> jenkinsEnvVars,
+                                    DigitalLab digitalLab,
+                                    Dictionary<string, List<string>> parallelRunnerEnvs,
+                                    bool displayController,
+                                    string analysisTemplate,
+                                    SummaryDataLogger summaryDataLogger,
+                                    List<ScriptRTSModel> scriptRtsSet,
+                                    string reportPath,
+                                    string xmlResultsFullFileName,
+                                    string encoding,
+                                    RunAsUser uftRunAsUser,
+                                    bool useUftLicense = false)
+        {
+            InitCommonFields(printInputParams, timeout, uftRunMode, controllerPollingInterval, perScenarioTimeOutMinutes, ignoreErrMsgs, digitalLab, parallelRunnerEnvs, displayController, analysisTemplate, summaryDataLogger, scriptRtsSet, reportPath, xmlResultsFullFileName, encoding, uftRunAsUser, useUftLicense);
+
+            _tests = GetListOfTestInfo(sources, @params, jenkinsEnvVars);
+
+            if (_tests == null || _tests.Count == 0)
+            {
+                ConsoleWriter.WriteLine(Resources.FsRunnerNoValidTests);
+                Environment.Exit((int)Launcher.ExitCodeEnum.Failed);
+            }
+
+            // if a custom path was provided,set the custom report path for all the valid tests(this will overwrite the default location)
+            if (reportPath != null)
+            {
+                _tests.ForEach(test => test.ReportPath = reportPath);
+            }
+
+            ConsoleWriter.WriteLine(string.Format(Resources.FsRunnerTestsFound, _tests.Count));
+
+            foreach (var test in _tests)
+            {
+                ConsoleWriter.WriteLine(string.Empty + test.TestName);
+                if (parallelRunnerEnvs.ContainsKey(test.TestId))
+                {
+                    parallelRunnerEnvs[test.TestId].ForEach(env => ConsoleWriter.WriteLine(SPACES + env));
+                }
+            }
+
+            ConsoleWriter.WriteLine(Resources.GeneralDoubleSeperator);
+        }
+
+        public FileSystemTestsRunner(List<TestInfo> tests,
+                                    bool printInputParams,
+                                    TimeSpan timeout,
+                                    string uftRunMode,
+                                    int controllerPollingInterval,
+                                    TimeSpan perScenarioTimeOutMinutes,
+                                    List<string> ignoreErrMsgs,
+                                    Dictionary<string, string> jenkinsEnvVars,
+                                    DigitalLab digitalLab,
+                                    Dictionary<string, List<string>> parallelRunnerEnvs,
+                                    bool displayController,
+                                    string analysisTemplate,
+                                    SummaryDataLogger summaryDataLogger,
+                                    List<ScriptRTSModel> scriptRtsSet,
+                                    string reportPath,
+                                    string xmlResultsFullFileName,
+                                    string encoding,
+                                    RunAsUser uftRunAsUser,
+                                    bool useUftLicense = false)
+        {
+            InitCommonFields(printInputParams, timeout, uftRunMode, controllerPollingInterval, perScenarioTimeOutMinutes, ignoreErrMsgs, digitalLab, parallelRunnerEnvs, displayController, analysisTemplate, summaryDataLogger, scriptRtsSet, reportPath, xmlResultsFullFileName, encoding, uftRunAsUser, useUftLicense);
+
+            _tests = tests;
+            if (_tests == null || _tests.Count == 0)
+            {
+                ConsoleWriter.WriteLine(Resources.FsRunnerNoValidTests);
+                Environment.Exit((int)Launcher.ExitCodeEnum.Failed);
+            }
+
+            ConsoleWriter.WriteLine(string.Format(Resources.FsRunnerTestsFound, _tests.Count));
+
+            foreach (var test in _tests)
+            {
+                ConsoleWriter.WriteLine(string.Empty + test.TestName);
+                if (parallelRunnerEnvs.ContainsKey(test.TestId))
+                {
+                    parallelRunnerEnvs[test.TestId].ForEach(env => ConsoleWriter.WriteLine(SPACES + env));
+                }
+            }
+
+            ConsoleWriter.WriteLine(Resources.GeneralDoubleSeperator);
+        }
+
+        public static TestInfo GetFirstTestInfo(TestData source, Dictionary<string, string> jenkinsEnvVars)
+        {
+            var tests = GetListOfTestInfo(new List<TestData>() { source }, jenkinsEnvVars: jenkinsEnvVars);
+            return tests.FirstOrDefault();
+        }
+
+        public static List<TestInfo> GetListOfTestInfo(List<TestData> sources, List<TestParameter> @params = null, Dictionary<string, string> jenkinsEnvVars = null)
+        {
+            List<TestInfo> tests = new List<TestInfo>();
 
             int idx = 1;
             //go over all sources, and create a list of all tests
@@ -210,14 +283,15 @@ namespace HpToolsLauncher
                             var test = new TestInfo(loc, loc, testPath, source.Id);
 
                             try
-							{
+                            {
                                 //we need to check for inline params and props params as well, for backward compatibility
                                 SetInlineParams(source.Tests, ref test);
-                                SetPropsParams(idx, ref test);
-                            } catch (ArgumentException)
-							{
+                                SetPropsParams(@params, idx, ref test);
+                            }
+                            catch (ArgumentException)
+                            {
                                 ConsoleWriter.WriteErrLine(string.Format(Resources.FsRunnerErrorParameterFormat, testPath));
-							}
+                            }
 
                             testGroup.Add(test);
                         }
@@ -230,10 +304,9 @@ namespace HpToolsLauncher
                     {
                         testGroup = new List<TestInfo>();
                         FileInfo fi = new FileInfo(source.Tests);
-                        if (fi.Extension == Helper.LoadRunnerFileExtention)
+                        if (fi.Extension == Helper.LoadRunnerFileExt)
                             testGroup.Add(new TestInfo(source.Tests, source.Tests, source.Tests, source.Id));
-                        else if (fi.Extension == Helper.MtbFileExtension)
-                        //if (source.TrimEnd().EndsWith(".mtb", StringComparison.CurrentCultureIgnoreCase))
+                        else if (fi.Extension == Helper.MtbFileExt)
                         {
                             MtbManager manager = new MtbManager();
                             var paths = manager.Parse(source.Tests);
@@ -242,9 +315,9 @@ namespace HpToolsLauncher
                                 testGroup.Add(new TestInfo(p, p, source.Tests, source.Id));
                             }
                         }
-                        else if (fi.Extension == Helper.MtbxFileExtension)
+                        else if (fi.Extension == Helper.MtbxFileExt)
                         {
-                            testGroup = MtbxManager.Parse(source.Tests, _jenkinsEnvVariables, source.Tests);
+                            testGroup = MtbxManager.Parse(source.Tests, jenkinsEnvVars, source.Tests);
 
                             // set the test Id for each test from the group
                             // this is important for parallel runner
@@ -254,7 +327,8 @@ namespace HpToolsLauncher
                             }
                         }
                     }
-                } catch (Exception)
+                }
+                catch (Exception)
                 {
                     testGroup = new List<TestInfo>();
                 }
@@ -266,36 +340,11 @@ namespace HpToolsLauncher
                 }
 
                 //we add the found tests to the test list
-                _tests.AddRange(testGroup);
+                tests.AddRange(testGroup);
 
                 ++idx;
             }
-
-            if (_tests == null || _tests.Count == 0)
-            {
-                ConsoleWriter.WriteLine(Resources.FsRunnerNoValidTests);
-                Environment.Exit((int)Launcher.ExitCodeEnum.Failed);
-            }
-
-            // if a custom path was provided,set the custom report path for all the valid tests(this will overwrite the default location)
-            if (reportPath != null)
-            {
-                _tests.ForEach(test => test.ReportPath = reportPath);
-            }
-
-            ConsoleWriter.WriteLine(string.Format(Resources.FsRunnerTestsFound, _tests.Count));
-
-            foreach (var test in _tests)
-            {
-                ConsoleWriter.WriteLine("" + test.TestName);
-                if (parallelRunnerEnvironments.ContainsKey(test.TestId))
-                {
-                    parallelRunnerEnvironments[test.TestId].ForEach(
-                        env => ConsoleWriter.WriteLine("    " + env));
-                }
-            }
-
-            ConsoleWriter.WriteLine(Resources.GeneralDoubleSeperator);
+            return tests;
         }
 
         /// <summary>
@@ -310,25 +359,30 @@ namespace HpToolsLauncher
             testsuite ts = _xmlBuilder.TestSuites.GetTestSuiteOrDefault(activeRunDesc.SuiteName, JunitXmlBuilder.ClassName, out isNewTestSuite);
             ts.tests += _tests.Count;
 
+            // if we have at least one environment for parallel runner, then it must be enabled
+            var isParallelRunnerEnabled = _parallelRunnerEnvironments.Count > 0;
             double totalTime = 0;
             try
             {
                 var start = DateTime.Now;
 
-                Dictionary<string, int> indexList = new Dictionary<string, int>();
                 foreach (var test in _tests)
                 {
-                    indexList[test.TestPath] = 0;
+                    if (!_idxOfRptDirsByTestPath.ContainsKey(test.TestPath))
+                        _idxOfRptDirsByTestPath[test.TestPath] = 0;
                 }
 
-                Dictionary<string, int> rerunList = createDictionary(_tests);
+                Exception dcomEx = null;
+                bool isDcomVerified = false;
+                Dictionary<string, int> rerunList = CreateDictionary(_tests);
+                Dictionary<string, string> prevTestOutParams = null;
 
                 for (int x = 0; x < _tests.Count; x++)
                 {
                     var test = _tests[x];
-                    if (indexList[test.TestPath] == 0)
+                    if (_idxOfRptDirsByTestPath[test.TestPath] == 0)
                     {
-                        indexList[test.TestPath] = 1;
+                        _idxOfRptDirsByTestPath[test.TestPath]++;
                     }
 
                     if (RunCancelled()) break;
@@ -337,7 +391,51 @@ namespace HpToolsLauncher
                     TestRunResults runResult = null;
                     try
                     {
-                        runResult = RunHpToolsTest(test, ref errorReason);
+                        var type = Helper.GetTestType(test.TestPath);
+                        if (isParallelRunnerEnabled && type == TestType.QTP)
+                        {
+                            type = TestType.ParallelRunner;
+                        }
+
+                        if (type == TestType.QTP)
+                        {
+                            if (!isDcomVerified)
+                            {
+                                try
+                                {
+                                    Helper.ChangeDCOMSettingToInteractiveUser();
+                                }
+                                catch (Exception ex)
+                                {
+                                    dcomEx = ex;
+                                }
+                                finally
+                                {
+                                    isDcomVerified = true;
+                                }
+                            }
+
+                            if (dcomEx != null)
+                                throw dcomEx;
+                        }
+
+                        if (prevTestOutParams != null && prevTestOutParams.Count > 0)
+                        {
+                            foreach (var param in test.Params)
+                            {
+                                if (param.Source != null && prevTestOutParams.ContainsKey(param.Source))
+                                {
+                                    param.Value = prevTestOutParams[param.Source];
+                                }
+                            }
+                            prevTestOutParams = null;
+                        }
+                        Dictionary<string, string> outParams = null;
+                        runResult = RunHpToolsTest(test, type, ref errorReason, out outParams);
+                        if (outParams != null && outParams.Count > 0)
+                            prevTestOutParams = outParams;
+                        else
+                            prevTestOutParams = null;
                     }
                     catch (Exception ex)
                     {
@@ -349,7 +447,7 @@ namespace HpToolsLauncher
                             TestPath = test.TestPath
                         };
                     }
-
+                    runResult.TestInfo = test;
                     //get the original source for this test, for grouping tests under test classes
                     runResult.TestGroup = test.TestGroup;
 
@@ -388,39 +486,23 @@ namespace HpToolsLauncher
                     //create test folders
                     if (rerunList[test.TestPath] > 0)
                     {
-                        if (!Directory.Exists(Path.Combine(test.TestPath, "Report1")))
+                        rerunList[test.TestPath]--;
+                        if (Directory.Exists(Path.Combine(test.TestPath, REPORT1)))
                         {
-                            rerunList[test.TestPath]--;
-                        }
-                        else
-                        {
-                            indexList[test.TestPath]++;
-                            rerunList[test.TestPath]--;
+                            _idxOfRptDirsByTestPath[test.TestPath]++;
                         }
                     }
 
-                    //update report folder
-                    string uftReportDir = Path.Combine(test.TestPath, "Report");
-                    string uftReportDirNew = Path.Combine(test.TestPath, string.Format("Report{0}", indexList[test.TestPath]));
-                    ConsoleWriter.WriteLine(string.Format("uftReportDir is {0}", uftReportDirNew));
-                    try
+                    if (runResult.TestType == TestType.ParallelRunner)
                     {
-                        if (Directory.Exists(uftReportDir))
-                        {
-                            if (Directory.Exists(uftReportDirNew))
-                            {
-                                Helper.DeleteDirectory(uftReportDirNew);
-                            }
-
-                            Directory.Move(uftReportDir, uftReportDirNew);
-                        }
+                        ConsoleWriter.WriteLine(string.Format("uftReportDir is: {0}", runResult.ReportLocation));
                     }
-                    catch(Exception)
+                    else
                     {
-                        System.Threading.Thread.Sleep(1000);
-                        Directory.Move(uftReportDir, uftReportDirNew);
+                        string uftReportDir = Path.Combine(test.TestPath, REPORT);
+                        string uftReportDirNew = Path.Combine(test.TestPath, string.Format("Report{0}", _idxOfRptDirsByTestPath[test.TestPath]));
+                        UpdateUftReportDir(uftReportDir, uftReportDirNew);
                     }
-
                     // Create or update the xml report. This function is called after each test execution in order to have a report available in case of job interruption
                     _xmlBuilder.CreateOrUpdatePartialXmlReport(ts, runResult, isNewTestSuite && x==0);
                     ConsoleWriter.WriteLineWithTime("Test complete: " + runResult.TestPath + "\n-------------------------------------------------------------------------------------------------------");
@@ -445,8 +527,50 @@ namespace HpToolsLauncher
             return activeRunDesc;
         }
 
+        private void UpdateUftReportDir(string uftReportDir, string uftReportDirNew)
+        {
+            //update report folder
+            if (Directory.Exists(uftReportDir))
+            {
+                ConsoleWriter.WriteLine(string.Format("uftReportDir is {0}", uftReportDirNew));
+                if (Directory.Exists(uftReportDirNew))
+                {
+                    Helper.DeleteDirectory(uftReportDirNew);
+                }
+                TryMoveDir(uftReportDir, uftReportDirNew, 0);
+            }
+        }
 
-        private Dictionary<string, int> createDictionary(List<TestInfo> validTests)
+        private bool TryMoveDir(string srcDir, string destDir, int idxOfRetry)
+        {
+            try
+            {
+                Thread.Sleep(1500);
+                Directory.Move(srcDir, destDir);
+            }
+            catch(Exception ex)
+            {
+                if (idxOfRetry >= 5)
+                {
+                    ConsoleWriter.WriteErrLineWithTime(string.Format("Failed to rename {0} after {1} retries.", srcDir, idxOfRetry));
+                    ConsoleWriter.WriteLine(string.Format("{0}: {1}", ex.GetType().Name, ex.Message));
+                    return false;
+                }
+                return TryMoveDir(srcDir, destDir, ++idxOfRetry);
+            }
+            return true;
+        }
+
+        public override void SafelyCancel()
+        {
+            base.SafelyCancel();
+            if (_runner != null)
+            {
+                _runner.SafelyCancel();
+            }
+        }
+
+        private Dictionary<string, int> CreateDictionary(List<TestInfo> validTests)
         {
             var rerunList = new Dictionary<string, int>();
             foreach (var item in validTests)
@@ -470,70 +594,50 @@ namespace HpToolsLauncher
         /// <param name="testPath"></param>
         /// <param name="test"></param>
         /// <exception cref="ArgumentException"></exception>
-        private void SetInlineParams(string testPath, ref TestInfo test)
+        private static void SetInlineParams(string testPath, ref TestInfo test)
         {
             // the inline test path does not contain any parameter specification
             if (testPath.IndexOf("\"") == -1) return;
 
             // the inline test path does contain parameter specification
-            string paramString = testPath.Substring(testPath.IndexOf("\"", StringComparison.Ordinal)).Trim();
-            string[] paramList = paramString.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            string strParams = testPath.Substring(testPath.IndexOf("\"", StringComparison.Ordinal)).Trim();
+            string[] @params = strParams.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
 
-            if (paramList == null || paramList.Length == 0) return;
+            if (@params == null || @params.Length == 0) return;
 
             IList<string> paramNames, paramValues;
 
-            if (!Helper.ValidateListOfParamsForInline(paramList, out paramNames, out paramValues))
+            if (!Helper.ValidateInlineParams(@params, out paramNames, out paramValues))
             {
                 throw new ArgumentException();
             }
 
-            TestParameterInfo placeholderParam;
-            string placeholderType = "string";
+            string paramType;
             long _unused;
             for (int i = 0; i < paramNames.Count; ++i)
             {
-                if (long.TryParse(paramValues[i], out _unused))
-                {
-                    placeholderType = "number";
-                }
-                else
-                {
-                    placeholderType = "string";
-                }
-
-                placeholderParam = new TestParameterInfo() { Name = paramNames[i], Type = placeholderType, Value = paramValues[i] };
-                test.ParameterList.Add(placeholderParam);
+                paramType = long.TryParse(paramValues[i], out _unused) ? "number" : "string";
+                test.Params.Add(new TestParameterInfo() { Name = paramNames[i], Type = paramType, Value = paramValues[i] });
             }
         }
 
         /// <summary>
         /// Sets the test's parameters from the props (CI args).
         /// </summary>
-        /// <param name="idx"></param>
-        /// <param name="test"></param>
-        private void SetPropsParams(int idx, ref TestInfo test)
+        private static void SetPropsParams(List<TestParameter> @params, int idx, ref TestInfo test)
         {
-            // all the parameters that belong to this test
-            List<TestParameter> relevant = _parameters.FindAll(elem => elem.TestIdx.Equals(idx));
-
-            foreach (TestParameter param in relevant)
+            if (@params != null && @params.Count > 0)
             {
-                TestParameterInfo placeholderParam = new TestParameterInfo() { Name = param.ParamName, Type = param.ParamType, Value = param.ParamVal };
-                test.ParameterList.Add(placeholderParam);
+                // all the parameters that belong to this test
+                List<TestParameter> testParams = @params.FindAll(elem => elem.TestIdx.Equals(idx));
+
+                foreach (TestParameter param in testParams)
+                {
+                    test.Params.Add(new TestParameterInfo() { Name = param.ParamName, Type = param.ParamType, Value = param.ParamVal });
+                }
             }
 
             return;
-        }
-
-        /// <summary>
-        /// checks if timeout has expired
-        /// </summary>
-        /// <returns></returns>
-        private bool CheckTimeout()
-        {
-            TimeSpan timeLeft = _timeout - _stopwatch.Elapsed;
-            return (timeLeft > TimeSpan.Zero);
         }
 
         /// <summary>
@@ -542,53 +646,43 @@ namespace HpToolsLauncher
         /// <param name="testInfo"></param>
         /// <param name="errorReason"></param>
         /// <returns></returns>
-        private TestRunResults RunHpToolsTest(TestInfo testInfo, ref string errorReason)
+        private TestRunResults RunHpToolsTest(TestInfo testInfo, TestType type, ref string errorReason, out Dictionary<string, string> outParams)
         {
-            var testPath = testInfo.TestPath;
-
-            var type = Helper.GetTestType(testPath);
-
-            // if we have at least one environment for parallel runner,
-            // then it must be enabled
-            var isParallelRunnerEnabled = _parallelRunnerEnvironments.Count > 0;
-
-            if (isParallelRunnerEnabled && type == TestType.QTP)
-            {
-                type = TestType.ParallelRunner;
-            }
-            // if the current test is an api test ignore the parallel runner flag
-            // and just continue as usual
-            else if (isParallelRunnerEnabled && type == TestType.ST)
+            outParams = new Dictionary<string, string>();
+            // if the current test is an api test ignore the parallel runner flag and just continue as usual
+            if (type == TestType.ST && _parallelRunnerEnvironments.Count > 0)
             {
                 ConsoleWriter.WriteLine("ParallelRunner does not support API tests, treating as normal test.");
             }
 
-            IFileSysTestRunner runner = null;
             switch (type)
             {
                 case TestType.ST:
-                    runner = new ApiTestRunner(this, _timeout - _stopwatch.Elapsed, _encoding);
+                    _runner = new ApiTestRunner(this, _timeout - _stopwatch.Elapsed, _encoding, _printInputParams, _uftRunAsUser);
                     break;
                 case TestType.QTP:
-                    runner = new GuiTestRunner(this, _useUFTLicense, _timeout - _stopwatch.Elapsed, _uftRunMode, _mcConnection, _mobileInfoForAllGuiTests);
+                    _runner = new GuiTestRunner(this, _useUFTLicense, _timeout - _stopwatch.Elapsed, _uftRunMode, _digitalLab, _printInputParams, _uftRunAsUser);
                     break;
                 case TestType.LoadRunner:
                     AppDomain.CurrentDomain.AssemblyResolve += Helper.HPToolsAssemblyResolver;
-                    runner = new PerformanceTestRunner(this, _timeout, _pollingInterval, _perScenarioTimeOutMinutes, _ignoreErrorStrings, _displayController, _analysisTemplate, _summaryDataLogger, _scriptRTSSet);
+                    _runner = new PerformanceTestRunner(this, _timeout, _pollingInterval, _perScenarioTimeOutMinutes, _ignoreErrorStrings, _displayController, _analysisTemplate, _summaryDataLogger, _scriptRTSSet);
                     break;
                 case TestType.ParallelRunner:
-                    runner = new ParallelTestRunner(this, _timeout - _stopwatch.Elapsed, _mcConnection, _mobileInfoForAllGuiTests, _parallelRunnerEnvironments);
+                    _runner = new ParallelTestRunner(this, _digitalLab.ConnectionInfo, _parallelRunnerEnvironments, _uftRunAsUser);
+                    break;
+                default:
+                    _runner = null;
                     break;
             }
 
-            if (runner != null)
+            if (_runner != null)
             {
                 if (!_colRunnersForCleanup.ContainsKey(type))
-                    _colRunnersForCleanup.Add(type, runner);
+                    _colRunnersForCleanup.Add(type, _runner);
 
                 Stopwatch s = Stopwatch.StartNew();
 
-                var results = runner.RunTest(testInfo, ref errorReason, RunCancelled);
+                var results = _runner.RunTest(testInfo, ref errorReason, RunCancelled, out outParams);
                 if (results.ErrorDesc != null && results.ErrorDesc.Equals(TestState.Error))
                 {
                     Environment.Exit((int)Launcher.ExitCodeEnum.Failed);
@@ -602,18 +696,15 @@ namespace HpToolsLauncher
             }
 
             //check for abortion
-            if (System.IO.File.Exists(_abortFilename))
+            if (File.Exists(_abortFilename))
             {
-
                 ConsoleWriter.WriteLine(Resources.GeneralStopAborted);
-
                 //stop working 
                 Environment.Exit((int)Launcher.ExitCodeEnum.Aborted);
             }
 
             return new TestRunResults { ErrorDesc = "Unknown TestType", TestState = TestState.Error };
         }
-
 
         /// <summary>
         /// checks if run was cancelled/aborted
@@ -622,17 +713,17 @@ namespace HpToolsLauncher
         public bool RunCancelled()
         {
             //if timeout has passed
-            if (_stopwatch.Elapsed > _timeout && !_blnRunCancelled)
+            if (_stopwatch.Elapsed > _timeout && !_isRunCancelled)
             {
                 ConsoleWriter.WriteLine(Resources.SmallDoubleSeparator);
                 ConsoleWriter.WriteLine(Resources.GeneralTimedOut);
                 ConsoleWriter.WriteLine(Resources.SmallDoubleSeparator);
 
                 Launcher.ExitCode = Launcher.ExitCodeEnum.Aborted;
-                _blnRunCancelled = true;
+                _isRunCancelled = true;
             }
 
-            return _blnRunCancelled;
+            return _isRunCancelled;
         }
 
         /// <summary>

@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -40,23 +44,21 @@ import hudson.model.*;
 
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
-import hudson.util.*;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
 import java.text.Format;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Stream;
 
+import hudson.util.FormValidation;
+import hudson.util.ListBoxModel;
+import hudson.util.VariableResolver;
 import jenkins.tasks.SimpleBuildStep;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.DataBoundSetter;
-import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.*;
 
 import com.microfocus.application.automation.tools.AlmToolsUtils;
 import com.microfocus.application.automation.tools.EncryptionUtils;
@@ -72,9 +74,9 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
     private boolean areParametersEnabled;
     private FilterTestsModel filterTestsModel;
     private SpecifyParametersModel specifyParametersModel;
-    private final static String HpToolsLauncher_SCRIPT_NAME = "HpToolsLauncher.exe";
-    private String ResultFilename = "ApiResults.xml";
-    private String ParamFileName = "ApiRun.txt";
+    private final static String HP_TOOLS_LAUNCHER_EXE = "HpToolsLauncher.exe";
+    private final static String HP_TOOLS_LAUNCHER_EXE_CFG = "HpToolsLauncher.exe.config";
+    private String resultsFileName = "ApiResults.xml";
     private AlmServerSettingsModel almServerSettingsModel;
 
     @DataBoundConstructor
@@ -288,10 +290,10 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
         VariableResolver<String> varResolver = new VariableResolver.ByMap<String>(build.getEnvironment(listener));
 
         // now merge them into one list
-        Properties mergedProperties = new Properties();
+        Properties mergedProps = new Properties();
 
-        mergedProperties.putAll(almServerSettingsModel.getProperties());
-        mergedProperties.putAll(runFromAlmModel.getProperties(env, varResolver));
+        mergedProps.putAll(almServerSettingsModel.getProperties());
+        mergedProps.putAll(runFromAlmModel.getProperties(env, varResolver));
 
         CredentialsScope scope = getCredentialsScopeOrDefault();
         String encAlmPass;
@@ -306,8 +308,8 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
 
             encAlmPass = EncryptionUtils.encrypt(almPassword, currNode);
 
-            mergedProperties.remove(RunFromAlmModel.ALM_PASSWORD_KEY);
-            mergedProperties.put(RunFromAlmModel.ALM_PASSWORD_KEY, encAlmPass);
+            mergedProps.remove(RunFromAlmModel.ALM_PASSWORD_KEY);
+            mergedProps.put(RunFromAlmModel.ALM_PASSWORD_KEY, encAlmPass);
         } catch (Exception e) {
             build.setResult(Result.FAILURE);
             listener.fatalError("Issue with ALM Password encryption: " + e.getMessage() + ".");
@@ -325,9 +327,9 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
             }
 
             encAlmApiKey = EncryptionUtils.encrypt(almApiKeySecret, currNode);
-            mergedProperties.remove(RunFromAlmModel.ALM_API_KEY_SECRET);
-            mergedProperties.put(RunFromAlmModel.ALM_API_KEY_SECRET, encAlmApiKey);
-            mergedProperties.put("almClientID", getAlmClientID());
+            mergedProps.remove(RunFromAlmModel.ALM_API_KEY_SECRET);
+            mergedProps.put(RunFromAlmModel.ALM_API_KEY_SECRET, encAlmApiKey);
+            mergedProps.put("almClientID", getAlmClientID());
         } catch (Exception e) {
             build.setResult(Result.FAILURE);
             listener.fatalError("Issue with apiKey encryption: " + e.getMessage() + ".");
@@ -335,9 +337,9 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
         }
 
         if (isFilterTestsEnabled) {
-            filterTestsModel.addProperties(mergedProperties);
+            filterTestsModel.addProperties(mergedProps);
         } else {
-            mergedProperties.put("FilterTests", "false");
+            mergedProps.put("FilterTests", "false");
         }
 
         Date now = new Date();
@@ -345,81 +347,86 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
         String time = formatter.format(now);
 
         // get a unique filename for the params file
-        ParamFileName = "props" + time + ".txt";
-        ResultFilename = "Results" + time + ".xml";
+        String propsFileName = String.format("props%s.txt", time);
+        resultsFileName = String.format("Results%s_%d.xml", time, build.getNumber());
         //KillFileName = "stop" + time + ".txt";
 
         //params used when run with Pipeline
         ParametersAction parameterAction = build.getAction(ParametersAction.class);
         List<ParameterValue> newParams = (parameterAction != null) ? new ArrayList<>(parameterAction.getAllParameters()) : new ArrayList<>();
         newParams.add(new StringParameterValue("buildStepName", "RunFromAlmBuilder"));
-        newParams.add(new StringParameterValue("resultsFilename", ResultFilename));
+        newParams.add(new StringParameterValue("resultsFilename", resultsFileName));
         build.addOrReplaceAction(new ParametersAction(newParams));
 
-        mergedProperties.put("runType", RunType.Alm.toString());
-        mergedProperties.put("resultsFilename", ResultFilename);
+        mergedProps.put("runType", RunType.Alm.toString());
+        mergedProps.put("resultsFilename", resultsFileName);
 
         if (areParametersEnabled) {
             try {
-                specifyParametersModel.addProperties(mergedProperties, "TestSet");
+                specifyParametersModel.addProperties(mergedProps, "TestSet", currNode);
             } catch (Exception e) {
                 listener.error("Error occurred while parsing parameter input, reverting back to empty array.");
             }
         }
 
         // get properties serialized into a stream
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        String strProps;
         try {
-            mergedProperties.store(stream, "");
+            strProps = AlmToolsUtils.getPropsAsString(mergedProps);
         } catch (IOException e) {
             build.setResult(Result.FAILURE);
-            listener.error("Failed to store properties for agent machine.");
+            listener.error("Failed to store properties on agent machine: " + e);
             return;
         }
-        String propsSerialization = stream.toString();
-        InputStream propsStream = IOUtils.toInputStream(propsSerialization);
-
-        // get the remote workspace filesys
-        FilePath projectWS = workspace;
 
         // Get the URL to the Script used to run the test, which is bundled
         // in the plugin
 
-        URL cmdExeUrl =
-                Hudson.getInstance().pluginManager.uberClassLoader.getResource(HpToolsLauncher_SCRIPT_NAME);
+        URL cmdExeUrl = Hudson.getInstance().pluginManager.uberClassLoader.getResource(HP_TOOLS_LAUNCHER_EXE);
         if (cmdExeUrl == null) {
             build.setResult(Result.FAILURE);
-            listener.fatalError(HpToolsLauncher_SCRIPT_NAME + " not found in resources");
+            listener.fatalError(HP_TOOLS_LAUNCHER_EXE + " not found in resources");
+            return;
+        }
+        URL cmdExeCfgUrl = Hudson.getInstance().pluginManager.uberClassLoader.getResource(HP_TOOLS_LAUNCHER_EXE_CFG);
+        if (cmdExeCfgUrl == null) {
+            build.setResult(Result.FAILURE);
+            listener.fatalError(HP_TOOLS_LAUNCHER_EXE_CFG + " not found in resources");
             return;
         }
 
-        FilePath propsFileName = projectWS.child(ParamFileName);
-        FilePath CmdLineExe = projectWS.child(HpToolsLauncher_SCRIPT_NAME);
+        FilePath fileProps = workspace.child(propsFileName);
+        FilePath cmdLineExe = workspace.child(HP_TOOLS_LAUNCHER_EXE);
+        FilePath cmdLineExeCfg = workspace.child(HP_TOOLS_LAUNCHER_EXE_CFG);
 
         try {
             // create a file for the properties file, and save the properties
-            propsFileName.copyFrom(propsStream);
+            if (!AlmToolsUtils.tryCreatePropsFile(listener, strProps, fileProps)) {
+                build.setResult(Result.FAILURE);
+                return;
+            }
             // Copy the script to the project workspace
-            CmdLineExe.copyFrom(cmdExeUrl);
-        } catch (IOException e1) {
+            cmdLineExe.copyFrom(cmdExeUrl);
+            cmdLineExeCfg.copyFrom(cmdExeCfgUrl);
+        } catch (IOException | InterruptedException e) {
             build.setResult(Result.FAILURE);
-            listener.error("Failed to copy UFT tools to agent machine.");
+            listener.error("Failed to copy props file or UFT tools to agent machine. " + e);
             return;
         }
         try {
             // Run the HpToolsLauncher.exe
-            AlmToolsUtils.runOnBuildEnv(build, launcher, listener, CmdLineExe, ParamFileName, currNode);
+            AlmToolsUtils.runOnBuildEnv(build, launcher, listener, cmdLineExe, propsFileName, currNode);
         } catch (IOException ioe) {
             Util.displayIOException(ioe, listener);
             build.setResult(Result.FAILURE);
         } catch (InterruptedException e) {
             build.setResult(Result.ABORTED);
             try {
-                AlmToolsUtils.runHpToolsAborterOnBuildEnv(build, launcher, listener, ParamFileName, workspace);
+                AlmToolsUtils.runHpToolsAborterOnBuildEnv(build, launcher, listener, propsFileName, workspace);
             } catch (IOException e1) {
                 Util.displayIOException(e1, listener);
                 build.setResult(Result.FAILURE);
-    		} catch (InterruptedException e1) {
+            } catch (InterruptedException e1) {
                 listener.error("Failed running HpToolsAborter " + e1.getMessage());
             }
         }
@@ -454,7 +461,6 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
     // To expose this builder in the Snippet Generator.
     @Symbol("runFromAlmBuilder")
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
-
         public DescriptorImpl() {
             load();
         }
@@ -484,14 +490,20 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
                     getAlmServers().filter(s -> s.getAlmServerName().equals(almServerName)).findFirst().orElse(null);
         }
 
-        public ListBoxModel doFillAlmServerNameItems() {
+        public ListBoxModel doFillAlmServerNameItems(@AncestorInPath Item item) {
             ListBoxModel m = new ListBoxModel();
+            if (item == null || !item.hasPermission(Item.CONFIGURE)) {
+                return m;
+            }
             getAlmServers().forEachOrdered(s -> m.add(s.getAlmServerName()));
             return m;
         }
 
-        public ListBoxModel doFillAlmUserNameItems(@QueryParameter String almServerName) {
+        public ListBoxModel doFillAlmUserNameItems(@QueryParameter String almServerName, @AncestorInPath Item item) {
             ListBoxModel m = new ListBoxModel();
+            if (item == null || !item.hasPermission(Item.CONFIGURE)) {
+                return m;
+            }
             if (hasAlmServers()) {
                 AlmServerSettingsModel model = findAlmServer(almServerName);
                 if (model != null && !model.getAlmCredentials().isEmpty()) {
@@ -500,12 +512,14 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
                     m.add(UftConstants.NO_USERNAME_DEFINED);
                 }
             }
-
             return m;
         }
 
-        public ListBoxModel doFillAlmClientIDItems(@QueryParameter String almServerName) {
+        public ListBoxModel doFillAlmClientIDItems(@QueryParameter String almServerName, @AncestorInPath Item item) {
             ListBoxModel m = new ListBoxModel();
+            if (item == null || !item.hasPermission(Item.CONFIGURE)) {
+                return m;
+            }
             if (hasAlmServers()) {
                 AlmServerSettingsModel model = findAlmServer(almServerName);
                 if (model != null && !model.getAlmSSOCredentials().isEmpty()) {
@@ -572,9 +586,12 @@ public class RunFromAlmBuilder extends Builder implements SimpleBuildStep {
         public List<CredentialsScope> getAlmCredentialScopes() {
             return Arrays.asList(CredentialsScope.values());
         }
+        public boolean getHasConfigurePermission() {
+            return JenkinsUtils.hasItemConfigurePermission();
+        }
     }
 
     public String getRunResultsFileName() {
-        return ResultFilename;
+        return resultsFileName;
     }
 }

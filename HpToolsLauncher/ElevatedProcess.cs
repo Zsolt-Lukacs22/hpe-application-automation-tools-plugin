@@ -1,28 +1,32 @@
-﻿/*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+/*
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -56,25 +60,9 @@ namespace HpToolsLauncher
             _workDirectory = workDirectory;
         }
 
-        public string ExecutablePath
-        {
-            get { return _path; }
-        }
-
-        public string Arguments
-        {
-            get { return _arguments; }
-        }
-
-        public string WorkDirectory
-        {
-            get { return _workDirectory; }
-        }
-
         private int GetExitCode()
         {
-            uint exitCode = 0;
-
+            uint exitCode;
             if (!NativeProcess.GetExitCodeProcess(_processInformation.hProcess, out exitCode))
             {
                 return 0;
@@ -101,7 +89,7 @@ namespace HpToolsLauncher
 
         public void StartElevated()
         {
-            Process process = null;
+            Process process;
             try
             {
                 process = Process.GetProcessesByName("explorer").FirstOrDefault();
@@ -120,15 +108,14 @@ namespace HpToolsLauncher
             int explorerPid = process.Id;
 
             // open the explorer process with the necessary flags
-            IntPtr hProcess = NativeProcess.OpenProcess(NativeProcess.ProcessAccessFlags.DuplicateHandle | NativeProcess.ProcessAccessFlags.QueryInformation,
-             false, explorerPid);
+            IntPtr hProcess = NativeProcess.OpenProcess(NativeProcess.ProcessAccessFlags.DuplicateHandle | NativeProcess.ProcessAccessFlags.QueryInformation, false, explorerPid);
 
             if (hProcess == IntPtr.Zero)
             {
                 throw new ElevatedProcessException("OpenProcess() failed with error code: " + Marshal.GetLastWin32Error());
             }
 
-            IntPtr hUser = IntPtr.Zero;
+            IntPtr hUser;
 
             // get the secondary token from the explorer process
             if (!NativeProcess.OpenProcessToken(hProcess, NativeProcess.TOKEN_QUERY | NativeProcess.TOKEN_DUPLICATE | NativeProcess.TOKEN_ASSIGN_PRIMARY, out hUser))
@@ -138,7 +125,7 @@ namespace HpToolsLauncher
                 throw new ElevatedProcessException("OpenProcessToken() failed with error code: " + Marshal.GetLastWin32Error());
             }
 
-            IntPtr userToken = IntPtr.Zero;
+            IntPtr userToken;
 
             // convert the secondary token to a primary token
             if (!NativeProcess.DuplicateTokenEx(hUser, NativeProcess.MAXIMUM_ALLOWED, IntPtr.Zero, NativeProcess.SECURITY_IMPERSONATION_LEVEL.SecurityIdentification,
@@ -150,9 +137,8 @@ namespace HpToolsLauncher
                 throw new ElevatedProcessException("DuplicateTokenEx() failed with error code: " + Marshal.GetLastWin32Error());
             }
 
-            // the explorer session id will be used in order to launch
-            // the given executable
-            uint sessionId = 0;
+            // the explorer session id will be used in order to launch the given executable
+            uint sessionId;
 
             if (!NativeProcess.ProcessIdToSessionId((uint)explorerPid, out sessionId))
             {
@@ -188,9 +174,9 @@ namespace HpToolsLauncher
             NativeProcess.PROCESS_INFORMATION pInfo = new NativeProcess.PROCESS_INFORMATION();
             startupInfo.cb = Marshal.SizeOf(pInfo);
 
-            string commandLine = _path + " " + _arguments;
+            string commandLine = string.Format("{0} {1}", _path, _arguments);
 
-            IntPtr pEnv = IntPtr.Zero;
+            IntPtr pEnv;
 
             // create a new environment block for the process
             if (!NativeProcess.CreateEnvironmentBlock(out pEnv, userToken, false))

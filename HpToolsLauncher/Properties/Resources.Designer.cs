@@ -19,7 +19,7 @@ namespace HpToolsLauncher.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "16.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class Resources {
@@ -343,6 +343,15 @@ namespace HpToolsLauncher.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Cloud Browser is not supported in UFT One {0}. Please upgrade to UFT One 23.4 or later..
+        /// </summary>
+        internal static string CloudBrowserNotSupported {
+            get {
+                return ResourceManager.GetString("CloudBrowserNotSupported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to CreateTDConnection.
         /// </summary>
         internal static string CreateTDConnection {
@@ -541,6 +550,15 @@ namespace HpToolsLauncher.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Using parameter {0} = **********.
+        /// </summary>
+        internal static string GeneralParameterUsageMask {
+            get {
+                return ResourceManager.GetString("GeneralParameterUsageMask", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to QTP is not installed on {0}..
         /// </summary>
         internal static string GeneralQtpNotInstalled {
@@ -633,9 +651,9 @@ namespace HpToolsLauncher.Properties {
         /// <summary>
         ///   Looks up a localized string similar to ================================================.
         /// </summary>
-        internal static string LauncherDoubleSeperator {
+        internal static string LauncherDoubleSeparator {
             get {
-                return ResourceManager.GetString("LauncherDoubleSeperator", resourceCulture);
+                return ResourceManager.GetString("LauncherDoubleSeparator", resourceCulture);
             }
         }
         
@@ -1117,7 +1135,16 @@ namespace HpToolsLauncher.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Invalid execution token for Mobile, should contain ClientID, SecretKey and TenantID..
+        ///   Looks up a localized string similar to Empty Digital Lab Server..
+        /// </summary>
+        internal static string McEmptyHostAddress {
+            get {
+                return ResourceManager.GetString("McEmptyHostAddress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid execution token for Digital Lab, should contain ClientID, SecretKey and TenantID..
         /// </summary>
         internal static string McInvalidToken {
             get {
@@ -1126,7 +1153,16 @@ namespace HpToolsLauncher.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Malformed execution token for Mobile, invalid key value: {0}..
+        ///   Looks up a localized string similar to Invalid Digital Lab Server URL: &apos;{0}&apos;..
+        /// </summary>
+        internal static string McInvalidUrl {
+            get {
+                return ResourceManager.GetString("McInvalidUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Malformed execution token for Digital Lab, invalid key value: {0}..
         /// </summary>
         internal static string McMalformedTokenInvalidKey {
             get {
@@ -1135,7 +1171,7 @@ namespace HpToolsLauncher.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Malformed execution token for Mobile, key-value pairs are not separated by {0}..
+        ///   Looks up a localized string similar to Malformed execution token for Digital Lab, key-value pairs are not separated by {0}..
         /// </summary>
         internal static string McMalformedTokenInvalidKeyValueSeparator {
             get {
@@ -1144,7 +1180,7 @@ namespace HpToolsLauncher.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Malformed execution token for Mobile, token without key-value..
+        ///   Looks up a localized string similar to Malformed execution token for Digital Lab, token without key-value..
         /// </summary>
         internal static string McMalformedTokenMissingKeyValuePair {
             get {
@@ -1294,6 +1330,15 @@ namespace HpToolsLauncher.Properties {
         internal static string UFT_Sprinter_Running {
             get {
                 return ResourceManager.GetString("UFT_Sprinter_Running", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The installed version of UFT One does not support the LaunchAsUser method. Please use the version 2023 or later..
+        /// </summary>
+        internal static string UftLaunchAsUserNotSupported {
+            get {
+                return ResourceManager.GetString("UftLaunchAsUserNotSupported", resourceCulture);
             }
         }
         

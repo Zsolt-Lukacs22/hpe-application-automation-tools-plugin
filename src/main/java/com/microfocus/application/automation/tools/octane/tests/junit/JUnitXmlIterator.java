@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -116,6 +120,10 @@ public class JUnitXmlIterator extends AbstractXmlIterator<JUnitTestResult> {
     private ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
     private Map<String, CodelessResult> testNameToCodelessResultMap = new HashMap<>();
     private String nodeName;
+
+    private final int ERROR_MESSAGE_MAX_SIZE = System.getProperty("octane.sdk.tests.error_message_max_size") != null ? Integer.parseInt(System.getProperty("octane.sdk.tests.error_message_max_size")) : 512*512;
+    private final int ERROR_DETAILS_MAX_SIZE = System.getProperty("octane.sdk.tests.error_details_max_size") != null ? Integer.parseInt(System.getProperty("octane.sdk.tests.error_details_max_size")) : 512*512;
+
 
     public JUnitXmlIterator(InputStream read, List<ModuleDetection> moduleDetection, FilePath workspace, String sharedCheckOutDirectory, String jobName, String buildId, long buildStarted, boolean stripPackageAndClass, HPRunnerType hpRunnerType, String jenkinsRootUrl, Object additionalContext, Pattern testParserRegEx, boolean octaneSupportsSteps,String nodeName) throws XMLStreamException {
 		super(read);
@@ -270,10 +278,9 @@ public class JUnitXmlIterator extends AbstractXmlIterator<JUnitTestResult> {
 
                     if (testReportCreated) {
                         final String basePath = ((List<String>) additionalContext).get(0);
-                        uftResultFilePath = Paths.get(basePath, "archive", "UFTReport", cleanedTestName, "run_results.xml").toFile().getCanonicalPath();
-                        externalURL = jenkinsRootUrl + "job/" + jobName + "/" + buildId + "/artifact/UFTReport/" +
-                                (StringUtils.isNotEmpty(this.nodeName) ? nodeName +"/" : "") +
-                                cleanedTestName + "/Result/run_results.html";
+                        String nodeNameSubFolder = StringUtils.isNotEmpty(this.nodeName) ? nodeName +"/" : "";
+                        uftResultFilePath = Paths.get(basePath, "archive", "UFTReport", nodeNameSubFolder, cleanedTestName, "/Result/run_results.xml").toFile().getCanonicalPath();
+                        externalURL = jenkinsRootUrl + "job/" + jobName + "/" + buildId + "/artifact/UFTReport/" + nodeNameSubFolder + cleanedTestName + "/Result/run_results.html";
                     } else {
                         //if UFT didn't created test results page - add reference to Jenkins test results page
                         externalURL = jenkinsRootUrl + "job/" + jobName + "/" + buildId + "/testReport/" + myPackageName + "/" + jenkinsTestClassFormat(myClassName) + "/" + jenkinsTestNameFormat(myTestName) + "/";
@@ -322,6 +329,8 @@ public class JUnitXmlIterator extends AbstractXmlIterator<JUnitTestResult> {
             String localName = element.getName().getLocalPart();
 
             if ("case".equals(localName)) { // NON-NLS
+                errorMsg = StringUtils.length(errorMsg) > ERROR_MESSAGE_MAX_SIZE ? StringUtils.abbreviate(errorMsg,ERROR_MESSAGE_MAX_SIZE) : errorMsg;
+                stackTraceStr = StringUtils.length(stackTraceStr) > ERROR_DETAILS_MAX_SIZE ? StringUtils.abbreviate(errorMsg,ERROR_DETAILS_MAX_SIZE) : stackTraceStr;
                 TestError testError = new TestError(stackTraceStr, errorType, errorMsg);
 
                 if(this.testParserRegEx != null){
@@ -418,6 +427,7 @@ public class JUnitXmlIterator extends AbstractXmlIterator<JUnitTestResult> {
             String localName = element.getName().getLocalPart();
 
             if ("case".equals(localName)) { // end step
+                errorMsg = StringUtils.length(errorMsg) > ERROR_MESSAGE_MAX_SIZE ? StringUtils.abbreviate(errorMsg,ERROR_MESSAGE_MAX_SIZE) : errorMsg;
                 UftResultStepData stepData = new UftResultStepData(Collections.singletonList(stepName), "", status.toPrettyName(), errorMsg, stepDuration);
                 currentIterationSteps.add(stepData);
 

@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -36,121 +40,155 @@ if (typeof BUILDER_SELECTOR === "undefined") {
     BUILDER_SELECTOR = "div[name='builder'][descriptorid*='com.microfocus.application.automation.tools.run.RunFrom']";
 }
 
-function setupParameterSpecification() {
+function setupParamSpecification(hasConfigPermission) {
+    document.body.style.cursor = "wait";
     let main = null;
     if (document.location.href.indexOf("pipeline-syntax") > 0) {
         main = document;
     } else if (document.currentScript) {
         main = document.currentScript.parentElement.closest(BUILDER_SELECTOR);
     }
-
-    setTimeout(() => {
-        startListeningForParameters(main);
-    }, 200);
+    if (main == null) {
+        setTimeout(() => { getFSContainerAndStartListening4Params(hasConfigPermission, 0); }, 500);
+    } else {
+        setTimeout(() => {
+            try {
+                startListening4Params(main, hasConfigPermission);
+            } catch(e) {
+                console.error(e);
+            } finally {
+                document.body.style.cursor = "";
+            }
+        }, 200);
+    }
 }
 
-function startListeningForParameters(mainContainer) {
-    let main = mainContainer;
-    if (mainContainer == null) {
-        let divs = document.querySelectorAll(BUILDER_SELECTOR);
-        main = divs[divs.length - 1];
+function getFSContainerAndStartListening4Params(hasConfigPermission, idxOfRetry) {
+    let divs = document.querySelectorAll(BUILDER_SELECTOR);
+    if (divs == null || divs.length == 0) {
+        if (idxOfRetry > 5) {
+            console.error("Failed to initialize Specific Params controls! Please retry again.");
+            document.body.style.cursor = "";
+        } else {
+            console.log("Retry to initialize Specific Params controls ...");
+            setTimeout(() => { getFSContainerAndStartListening4Params(++idxOfRetry); }, 500);
+        }
+    } else {
+        try {
+            startListening4Params(divs[divs.length - 1]);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            document.body.style.cursor = "";
+        }
     }
+}
 
-    loadParamInputs(main);
+function startListening4Params(main, hasConfigPermission) {
+    if (main == null) {
+        console.error("Failed to initialize Specific Params controls! Please retry or refresh the page.");
+        return;
+    }
+    loadParamInputs(main, hasConfigPermission);
 
-    const btnAddNewParam = main.querySelector("button[name='addNewParameterBtn']");
+    const btnAddNewParam = main.querySelector("button[name='addNewParamBtn']");
     if (btnAddNewParam) {
-        btnAddNewParam.addEventListener('click', () => {
-            addNewParam(main);
-        });
+        if (hasConfigPermission) {
+            btnAddNewParam.addEventListener('click', () => { addNewParam(main, true); });
+        } else {
+            btnAddNewParam.disabled = true;
+            btnAddNewParam.style.cursor = "not-allowed";
+            btnAddNewParam.style.pointerEvents = "auto";
+        }
     } else {
         console.warn("Add parameter button is missing.");
     }
 
-    const updateMaxNumberForSpinner = (testInput) => {
-        const rowInputs = main.querySelectorAll(".test-param > div > .num-of-test-spinner");
-        const newMax = testInput.value.split("\n").filter(row => row !== "").length;
-        rowInputs.forEach(rowInput => rowInput.setAttribute("max", newMax === 0 ? 1 : newMax.toString()));
-    }
-    const updateTest = (container, spinner, testInput) => {
-        const testLabel = spinner.parentElement.nextElementSibling.querySelector(".test-label");
-        if (spinner.value === '') {
-            testLabel.value = "";
-            return;
+    if (hasConfigPermission) {
+        const updateMaxNumber4Spinner = (testInput) => {
+            const rowInputs = main.querySelectorAll(".test-param > div > .num-of-test-spinner");
+            const newMax = testInput.value.split("\n").filter(row => row !== "").length;
+            rowInputs.forEach(rowInput => rowInput.setAttribute("max", newMax === 0 ? 1 : newMax.toString()));
         }
-        testLabel.value = testInput.value.split("\n")[parseInt(spinner.value) - 1] || "Please, specify tests first";
-    }
+        const updateTest = (container, spinner, testInput) => {
+            const testLabel = spinner.parentElement.nextElementSibling.querySelector(".test-label");
+            if (spinner.value === '') {
+                testLabel.value = "";
+                return;
+            }
+            testLabel.value = testInput.value.split("\n")[parseInt(spinner.value) - 1] || "Please, specify tests first";
+        }
 
-    let testInput;
-
-    const prepareTestInput = () => {
-        testInput = queryTestInput(main);
-        if (testInput) {
-            testInput.addEventListener("change", () => {
-                updateMaxNumberForSpinner(testInput);
-
-                rowInputs.forEach((rowInput) => {
-                    updateTest(main, rowInput, testInput);
+        let testInput;
+        const prepareTestInput = () => {
+            testInput = queryTestInput(main);
+            if (testInput) {
+                testInput.addEventListener("change", () => {
+                    updateMaxNumber4Spinner(testInput);
+                    rowInputs.forEach((rowInput) => {
+                        updateTest(main, rowInput, testInput);
+                    });
                 });
-            });
-            testInput.dispatchEvent(new Event("change"));
-        } else {
-            console.warn("Test input text area is missing.");
+                testInput.dispatchEvent(new Event("change"));
+            } else {
+                console.warn("Test input text area is missing.");
+            }
         }
-    }
 
-    const rowInputs = main.querySelectorAll(".test-param > div > .num-of-test-spinner");
-    prepareTestInput();
-    rowInputs.forEach(rowInput => {
-        rowInput.addEventListener("click", () => {
-            updateTest(main, rowInput, testInput);
-        });
-        rowInput.addEventListener("change", () => {
-            updateTest(main, rowInput, testInput);
-        })
-    });
-
-    const chkAreParamsEnabled = main.querySelector("input[name='areParametersEnabled']");
-    if (chkAreParamsEnabled) {
-        chkAreParamsEnabled.addEventListener("click", () => cleanParamInput(main));
-    }
-
-    const expandTestsFieldBtn = main.querySelector(".expanding-input__button input[type='button']");
-    expandTestsFieldBtn && expandTestsFieldBtn.addEventListener("click", () => {
+        const rowInputs = main.querySelectorAll(".test-param > div > .num-of-test-spinner");
         prepareTestInput();
-    });
+        rowInputs.forEach(rowInput => {
+            rowInput.addEventListener("click", () => {
+                updateTest(main, rowInput, testInput);
+            });
+            rowInput.addEventListener("change", () => {
+                updateTest(main, rowInput, testInput);
+            })
+        });
+
+        const chkAreParamsEnabled = main.querySelector("input[name='areParametersEnabled']");
+        if (chkAreParamsEnabled) {
+            chkAreParamsEnabled.addEventListener("click", () => cleanParamInput(main, true));
+        }
+
+        const expandTestsFieldBtn = main.querySelector(".expanding-input__button [type='button']");
+        expandTestsFieldBtn && expandTestsFieldBtn.addEventListener("click", () => {
+            prepareTestInput();
+        });
+    }
 }
 
 function queryTestInput(container) {
-    return container.querySelector("textarea[name='runfromfs.fsTests'], input[name='runfromfs.fsTests'], textarea[name='runfromalm.almTestSets'], input[name='runfromalm.almTestSets']");
+    return container.querySelector("textarea[name='fsTests'], input[name='fsTests'], textarea[name='runfromalm.almTestSets'], input[name='runfromalm.almTestSets']");
 }
 
 function generateAndPutJSONResult(container) {
-    const paramsContainer = container.querySelector("ul[name='testParameters']");
+    const paramsContainer = container.querySelector("ul[name='testParams']");
 
-    const inputs = paramsContainer.querySelectorAll("li[name='testParameter']");
+    const inputs = paramsContainer.querySelectorAll("li[name='testParam']");
     let inputJSON = [];
 
-    const strParamRes = paramsContainer.parentElement.querySelector("input[name='parameterJson']");
+    const strParamRes = paramsContainer.parentElement.querySelector("input.json-params");
 
-    if (!strParamRes) return console.warn("Parameter input JSON result hidden field is missing, reload the page.");
+    if (!strParamRes) return console.warn("Param input JSON result hidden field is missing, reload the page.");
 
     inputs.forEach(elem => {
         let curr = {};
-        const testIdx = curr["index"] = elem.querySelector(`#parameterInputRow_${elem.dataset.index}`).value;
-        const name = curr["name"] = elem.querySelector(`#parameterInputName_${elem.dataset.index}`).value;
+        const idx = elem.dataset.index;
+        curr.index = elem.querySelector(`#paramInputRow_${idx}`).value;
+        const name = curr.name = elem.querySelector(`#paramInputName_${idx}`).value;
 
         if (name !== "") {
-            curr["type"] = elem.querySelector(`#parameterInputType_${elem.dataset.index}`).value;
+            curr.type = elem.querySelector(`#paramInputType_${elem.dataset.index}`).value;
 
-            const val = elem.querySelector(`#parameterInputValue_${elem.dataset.index}`);
-            if (curr["type"] === "Boolean") {
-                curr["value"] = val.checked;
-            } else if (curr["type"] === "Date" || curr["type"] === "DateTime") {
+            const val = elem.querySelector(`#paramInputValue_${elem.dataset.index}`);
+            if (curr.type === "Boolean") {
+                curr.value = val.checked;
+            } else if (curr.type === "Date" || curr.type === "DateTime") {
                 const date = new Date(val.value);
-                curr["value"] = `${date.getDate() < 10 ? '0' + date.getDate() : date.getDate()}/${date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth()}/${date.getFullYear()}`;
+                curr.value = `${date.getDate() < 10 ? '0' + date.getDate() : date.getDate()}/${date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth()}/${date.getFullYear()}`;
             } else {
-                curr["value"] = val.value;
+                curr.value = val.value;
             }
 
             inputJSON.push(curr);
@@ -160,19 +198,19 @@ function generateAndPutJSONResult(container) {
     strParamRes.value = normalizeJsonFormat(JSON.stringify(inputJSON));
 }
 
-function cleanParamInput(container) {
+function cleanParamInput(container, hasConfigPermission) {
     if (this.checked) {
-        loadParamInputs(container);
+        loadParamInputs(container, hasConfigPermission);
     } else {
-        const strParamRes = container.querySelector("input[name='parameterJson']");
-        if (!strParamRes) return console.warn("Parameter input JSON result hidden field is missing, reload the page.");
+        const strParamRes = container.querySelector("input.json-params");
+        if (!strParamRes) return console.warn("Param input JSON result hidden field is missing, reload the page.");
         strParamRes.value = normalizeJsonFormat(JSON.stringify([]));
     }
 }
 
-function addNewParam(container) {
-    const paramContainer = container.querySelector("ul[name='testParameters']");
-    const params = paramContainer.querySelectorAll("li[name='testParameter']") || [];
+function addNewParam(container, hasConfigPermission) {
+    const paramContainer = container.querySelector("ul[name='testParams']");
+    const params = paramContainer.querySelectorAll("li[name='testParam']") || [];
     const nextIdx = params.length !== 0 ? parseInt(Array.from(params).reduce((prev, curr) => {
         if (parseInt(prev.dataset.index) > parseInt(curr.dataset.index)) return prev;
 
@@ -187,37 +225,36 @@ function addNewParam(container) {
         console.warn("Test input field is missing.");
     }
 
+    let htmlDelBtn = hasConfigPermission ?
+        `<span class="yui-button danger" id="delParamInput_${nextIdx}" name="delParam"><span class="first-child"><button type="button" tabindex="0">&#9747;</button></span></span>`:
+        "";
     const elem = `
-        <li class="test-param" name="testParameter" data-index="${nextIdx}">
+        <li class="test-param" name="testParam" data-index="${nextIdx}">
             <div>
-                <input class="jenkins-input setting-input num-of-test-spinner" name="parameterInput" id="parameterInputRow_${nextIdx}" min="1" max="${maxNumOfTests === 0 ? 1 : maxNumOfTests}" type="number" required="required" />
+                <input class="jenkins-input setting-input num-of-test-spinner" name="paramInput" id="paramInputRow_${nextIdx}" min="1" max="${maxNumOfTests === 0 ? 1 : maxNumOfTests}" type="number" required="required" />
             </div>
             <div>
-                <input class="jenkins-input setting-input test-label" name="parameterInput" id="parameterInputTest_${nextIdx}" type="text" value="" disabled />
+                <input class="jenkins-input setting-input test-label" name="paramInput" id="paramInputTest_${nextIdx}" type="text" value="" disabled />
             </div>
             <div>
-                <input class="jenkins-input setting-input" name="parameterInput" id="parameterInputName_${nextIdx}" type="text" required="required" />
+                <input class="jenkins-input setting-input" name="paramInput" id="paramInputName_${nextIdx}" type="text" required="required" />
             </div>
             <div>
-                <input class="jenkins-input setting-input" name="parameterInput" id="parameterInputValue_${nextIdx}" type="text"/>
+                <input class="jenkins-input setting-input" name="paramInput" id="paramInputValue_${nextIdx}" type="text"/>
             </div>
             <div>
-                <select name="parameterInput" id="parameterInputType_${nextIdx}">
+                <select name="paramInput" id="paramInputType_${nextIdx}">
                     ${selectableTypeList}
                 </select>
             </div>  
-            <span class="yui-button danger" id="delParameterInput_${nextIdx}" name="delParameter">
-                <span class="first-child">
-                    <button type="button" tabindex="0">&#9747;</button>
-                </span>
-            </span>
+            ${htmlDelBtn}
         </li>
         `;
 
     paramContainer.insertAdjacentHTML("beforeend", elem);
 
-    const testLabel = paramContainer.querySelector(`#parameterInputTest_${nextIdx}`);
-    const spinner = paramContainer.querySelector(`#parameterInputRow_${nextIdx}`);
+    const testLabel = paramContainer.querySelector(`#paramInputTest_${nextIdx}`);
+    const spinner = paramContainer.querySelector(`#paramInputRow_${nextIdx}`);
 
     const handleSpinner = () => {
         if (spinner.value === '') {
@@ -236,17 +273,17 @@ function addNewParam(container) {
 
     spinner.dispatchEvent(new Event("change"));
 
-    Array.from(paramContainer.querySelectorAll(`[name='parameterInput']`)).filter(input => input.getAttribute("id").endsWith("_" + nextIdx.toString()))
+    Array.from(paramContainer.querySelectorAll(`[name='paramInput']`)).filter(input => input.getAttribute("id").endsWith("_" + nextIdx.toString()))
         .forEach(input => input.addEventListener("change", () => generateAndPutJSONResult(container)));
 
-    const delButton = paramContainer.querySelector(`#delParameterInput_${nextIdx} > span > button`);
-    delButton.addEventListener("click", () => deleteParam(delButton, container));
+    const delButton = paramContainer.querySelector(`#delParamInput_${nextIdx} > span > button`);
+    delButton?.addEventListener("click", () => deleteParam(delButton, container));
 
-    const typeField = paramContainer.querySelector(`#parameterInputType_${nextIdx}`);
-    const valueField = paramContainer.querySelector(`#parameterInputValue_${nextIdx}`);
+    const typeField = paramContainer.querySelector(`#paramInputType_${nextIdx}`);
+    const valueField = paramContainer.querySelector(`#paramInputValue_${nextIdx}`);
     typeField.addEventListener("change", () => {
         valueField.value = "";
-        valueField.setAttribute("type", mapForTypeAssociations[typeField.value] || "text");
+        valueField.setAttribute("type", map4TypeAssociations[typeField.value] || "text");
     });
 }
 
@@ -256,8 +293,8 @@ function deleteParam(elem, container) {
 }
 
 // has to be declared like this, because it has to be globally accessible and multiple steps can be added in a single job, which would throw duplicate exception
-if (typeof mapForTypeAssociations === "undefined") {
-    mapForTypeAssociations = {
+if (typeof map4TypeAssociations === "undefined") {
+    map4TypeAssociations = {
         String: 'text',
         Number: 'number',
         Boolean: 'checkbox',
@@ -273,10 +310,10 @@ if (typeof mapForTypeAssociations === "undefined") {
     };
 }
 
-function loadParamInputs(container) {
-    const paramResultStr = container.querySelector("input[name='parameterJson']");
+function loadParamInputs(container, hasConfigPermission) {
+    const paramResultStr = container.querySelector("input.json-params");
 
-    // one some browsers the value attribute may return with extraneous quotes
+    // on some browsers the value may return with extra-quotes
     let params = paramResultStr.value;
 
     if (params === "" || params === "[]" || params === "\"[]\"") return;
@@ -291,21 +328,21 @@ function loadParamInputs(container) {
     // has to be an object to be valid JSON input, otherwise because of security policies the JSON was altered
     if (typeof(json) === "string") json = JSON.parse("[]");
 
-    for (let i = 0; i < json.length; ++i) addNewParam(container);
+    for (let i = 0; i < json.length; ++i) addNewParam(container, hasConfigPermission);
 
-    const parameters = container.querySelectorAll("li[name='testParameter']");
+    const testParams = container.querySelectorAll("li[name='testParam']");
 
     for (let i = 0; i < json.length; ++i) {
-        const currElem = parameters[i];
+        const currElem = testParams[i];
         const currElemVal = json[i];
 
-        currElem.querySelector(`#parameterInputRow_${currElem.dataset.index}`).value = currElemVal["index"] || 1;
-        currElem.querySelector(`#parameterInputName_${currElem.dataset.index}`).value = currElemVal["name"] || "";
-        const valueField = currElem.querySelector(`#parameterInputValue_${currElem.dataset.index}`)
-        const typeField = currElem.querySelector(`#parameterInputType_${currElem.dataset.index}`);
+        currElem.querySelector(`#paramInputRow_${currElem.dataset.index}`).value = currElemVal["index"] || 1;
+        currElem.querySelector(`#paramInputName_${currElem.dataset.index}`).value = currElemVal["name"] || "";
+        const valueField = currElem.querySelector(`#paramInputValue_${currElem.dataset.index}`)
+        const typeField = currElem.querySelector(`#paramInputType_${currElem.dataset.index}`);
         typeField.value = currElemVal["type"] || "String";
 
-        valueField.setAttribute("type", mapForTypeAssociations[typeField.value] || "text");
+        valueField.setAttribute("type", map4TypeAssociations[typeField.value] || "text");
         if (typeField.value === "Boolean") {
             valueField.checked = currElemVal["value"] || false;
         } else if (typeField.value === "Date" || typeField.value === "DateTime") {

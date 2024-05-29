@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -41,10 +45,11 @@ using System.Xml.Linq;
 using System.Xml.XPath;
 using System.Xml.Xsl;
 
-namespace HpToolsLauncher
+namespace HpToolsLauncher.Utils
 {
     public enum TestType
     {
+        Unknown,
         QTP,
         ST,
         LoadRunner,
@@ -77,12 +82,10 @@ namespace HpToolsLauncher
 
         public const string FT_REG_ROOT = @"SOFTWARE\Mercury Interactive\QuickTest Professional\CurrentVersion";
 
-        internal const string FT_REG_ROOT_64_BIT =
-            @"SOFTWARE\Wow6432Node\Mercury Interactive\QuickTest Professional\CurrentVersion";
+        internal const string FT_REG_ROOT_64_BIT = @"SOFTWARE\Wow6432Node\Mercury Interactive\QuickTest Professional\CurrentVersion";
 
         public const string FT_ROOT_PATH_KEY = "QuickTest Professional";
         private const string QTP_ROOT_ENV_VAR_NAME = "QTP_TESTS_ROOT";
-
 
         public const string ServiceTestRegistryKey = @"SOFTWARE\Hewlett-Packard\HP Service Test";
         public const string ServiceTesCurrentVersionRegistryKey = ServiceTestRegistryKey + @"\CurrentVersion";
@@ -100,24 +103,29 @@ namespace HpToolsLauncher
         public static readonly System.Collections.ObjectModel.ReadOnlyCollection<string> LoadRunnerENVVariables =
             new System.Collections.ObjectModel.ReadOnlyCollection<string>(new[] { "LG_PATH", "LR_PATH" });
 
-
         public const string InstalltionFolderValue = "LOCAL_MLROOT";
 
-        public const string UftViewerInstalltionFolderRegistryKey =
-            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{E86D56AE-6660-4357-890F-8B79AB7A8F7B}";
+        public const string UftViewerInstalltionFolderRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{E86D56AE-6660-4357-890F-8B79AB7A8F7B}";
 
-        public const string UftViewerInstalltionFolderRegistryKey64Bit =
-            @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{E86D56AE-6660-4357-890F-8B79AB7A8F7B}";
-
+        public const string UftViewerInstalltionFolderRegistryKey64Bit = @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{E86D56AE-6660-4357-890F-8B79AB7A8F7B}";
 
         public const string ResultsFileName = "Results.xml";
         public const string QTPReportProcessPath = @"bin\reportviewer.exe";
 
-        public const string STFileExtention = ".st";
-        public const string QTPFileExtention = ".tsp";
-        public const string LoadRunnerFileExtention = ".lrs";
-        public const string MtbFileExtension = ".mtb";
-        public const string MtbxFileExtension = ".mtbx";
+        public const string STFileExt = ".st";
+        public const string QTPFileExt = ".tsp";
+        public const string LoadRunnerFileExt = ".lrs";
+        public const string MtbFileExt = ".mtb";
+        public const string MtbxFileExt = ".mtbx";
+
+        private const string SOFTWARE_Classes_AppID_A67EB23A = @"SOFTWARE\Classes\AppID\{A67EB23A-1B8F-487D-8E38-A6A3DD150F0B}";
+
+        private const string SYSTEM_CURRENTCONTROLSET_CONTROL = @"SYSTEM\CurrentControlSet\Control";
+        private const string INTERACTIVE_USER = "Interactive User";
+        private const string RUN_AS = "RunAs";
+        private const string CONTAINER_TYPE = "ContainerType";
+        private const string UNABLE_TO_CHANGE_DCOM_SETTINGS = "Unable to change DCOM settings. To change it manually: run dcomcnfg.exe -> My Computer -> DCOM Config -> QuickTest Professional Automation -> Identity -> and select The Interactive User.";
+        private const string BYPASS_DCOM_SETTINGS_CHECK = "Bypass DCOM settings check, since the process runs inside a Docker container.";
 
         #endregion
 
@@ -173,14 +181,9 @@ namespace HpToolsLauncher
                 {
                     return ans;
                 }
-
             }
-
-
             return null;
-
         }
-
 
         public static string GetRootDirectoryPath()
         {
@@ -228,7 +231,7 @@ namespace HpToolsLauncher
         }
 
         public static string GetTestPathWithoutParams(string test)
-		{
+        {
             int quotationMarkIndex = test.IndexOf(" \"", StringComparison.Ordinal);
             return quotationMarkIndex == -1 ? test : test.Substring(0, quotationMarkIndex).Trim();
         }
@@ -253,7 +256,7 @@ namespace HpToolsLauncher
         /// <param name="paramNames"></param>
         /// <param name="paramValues"></param>
         /// <returns>true if parameters the list of parameters is valid, false otherwise</returns>
-        public static bool ValidateListOfParamsForInline(string[] @params, out IList<string> paramNames, out IList<string> paramValues)
+        public static bool ValidateInlineParams(string[] @params, out IList<string> paramNames, out IList<string> paramValues)
         {
             if (@params == null) throw new ArgumentNullException("Parameters are missing");
             paramNames = new List<string>();
@@ -312,10 +315,11 @@ namespace HpToolsLauncher
         {
             long _unused;
             if (!string.IsNullOrEmpty(param) && long.TryParse(param, out _unused))
-			{
+            {
                 return true;
-			} else
-			{
+            }
+            else
+            {
                 // must be at least 2 characters wide, containing at least 2 double quotes
                 if (param.Length < 2) return false;
 
@@ -339,10 +343,11 @@ namespace HpToolsLauncher
                 bool isNumeric = !string.IsNullOrEmpty(param) && long.TryParse(param, out n);
 
                 if (isNumeric)
-				{
+                {
                     return n.ToString();
-				} else
-				{
+                }
+                else
+                {
                     if (param.Length >= 2)
                     {
                         return param.Substring(1, param.Length - 2);
@@ -458,7 +463,7 @@ namespace HpToolsLauncher
 
         public static string GetSTInstallPath()
         {
-            string ret = String.Empty;
+            string ret = string.Empty;
             var regKey = Registry.LocalMachine.OpenSubKey(ServiceTesCurrentVersionRegistryKey);
             if (regKey != null)
             {
@@ -485,7 +490,7 @@ namespace HpToolsLauncher
                 }
             }
 
-            if (!String.IsNullOrEmpty(ret))
+            if (!string.IsNullOrEmpty(ret))
             {
                 ret = ret.EndsWith("\\") ? ret : (ret + "\\");
                 if (ret.EndsWith("\\bin\\"))
@@ -521,17 +526,14 @@ namespace HpToolsLauncher
             {
                 //try 64-bit
                 regkey = Registry.LocalMachine.OpenSubKey(LoadRunner64RegisryKey);
-
             }
 
             if (regkey != null)
             {
-
                 //LoadRunner Exists. check if Controller is installed (not SA version)
                 regkey = regkey.OpenSubKey(LoadRunnerControllerDirRegistryKey);
                 if (regkey != null)
                     return regkey.GetValue("Controller").ToString();
-
             }
 
             return installPath;
@@ -551,8 +553,6 @@ namespace HpToolsLauncher
 
         public static TestType GetTestType(string path)
         {
-
-
             if ((File.GetAttributes(path) & FileAttributes.Directory) == FileAttributes.Directory)
             {
                 //ST and QTP uses folder as test locations
@@ -589,9 +589,9 @@ namespace HpToolsLauncher
             try
             {
 
-                files = root.GetFiles("*" + STFileExtention);
-                files = files.Union(root.GetFiles("*" + QTPFileExtention)).ToArray();
-                files = files.Union(root.GetFiles("*" + LoadRunnerFileExtention)).ToArray();
+                files = root.GetFiles("*" + STFileExt);
+                files = files.Union(root.GetFiles("*" + QTPFileExt)).ToArray();
+                files = files.Union(root.GetFiles("*" + LoadRunnerFileExt)).ToArray();
             }
             catch (Exception)
             {
@@ -605,7 +605,7 @@ namespace HpToolsLauncher
             {
                 foreach (FileInfo fi in files)
                 {
-                    if (fi.Extension == LoadRunnerFileExtention)
+                    if (fi.Extension == LoadRunnerFileExt)
                         results.Add(fi.FullName);
                     else
                         results.Add(fi.Directory.FullName);
@@ -717,14 +717,17 @@ namespace HpToolsLauncher
             return uftFolder + @"bin\" + parallelRunnerExecutable;
         }
 
+        /// <summary>
+        /// Why we need this? If we run jenkins in a master slave node where there is a jenkins service installed in the slave machine, we need to change the DCOM settings as follow:
+        /// dcomcnfg.exe -> My Computer -> DCOM Config -> QuickTest Professional Automation -> Identity -> and select The Interactive User
+        /// </summary>
         public static void ChangeDCOMSettingToInteractiveUser()
         {
-            string errorMsg = "Unable to change DCOM settings. To chage it manually: " +
-                  "run dcomcnfg.exe -> My Computer -> DCOM Config -> QuickTest Professional Automation -> Identity -> and select The Interactive User";
-
-            string interactiveUser = "Interactive User";
-            string runAs = "RunAs";
-
+            if (IsInDocker())
+            {
+                ConsoleWriter.WriteLine(BYPASS_DCOM_SETTINGS_CHECK);
+                return;
+            }
             try
             {
                 var regKey = GetQuickTestProfessionalAutomationRegKey(RegistryView.Registry32);
@@ -735,26 +738,41 @@ namespace HpToolsLauncher
                 }
 
                 if (regKey == null)
-                    throw new Exception(@"Unable to find in registry SOFTWARE\Classes\AppID\{A67EB23A-1B8F-487D-8E38-A6A3DD150F0B");
+                    throw new Exception(string.Format("Unable to find in registry key {0}", SOFTWARE_Classes_AppID_A67EB23A));
 
-                object runAsKey = regKey.GetValue(runAs);
+                object runAsKey = regKey.GetValue(RUN_AS);
 
-                if (runAsKey == null || !runAsKey.ToString().Equals(interactiveUser))
+                if (runAsKey == null || !runAsKey.ToString().Equals(INTERACTIVE_USER))
                 {
-                    regKey.SetValue(runAs, interactiveUser);
+                    regKey.SetValue(RUN_AS, INTERACTIVE_USER);
                 }
-
             }
             catch (Exception ex)
             {
-                throw new Exception(errorMsg + "detailed error is : " + ex.Message);
+                throw new Exception(string.Format("{0}. Error: ", UNABLE_TO_CHANGE_DCOM_SETTINGS, ex.Message));
             }
+        }
+
+        private static bool IsInDocker()
+        {
+            int containerType = 0;
+            try
+            {
+                RegistryKey regKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                regKey = regKey.OpenSubKey(SYSTEM_CURRENTCONTROLSET_CONTROL, false);
+                containerType = (regKey.GetValue(CONTAINER_TYPE) as int?).GetValueOrDefault();
+            }
+            catch (Exception ex)
+            {
+                ConsoleWriter.WriteErrLine(string.Format("IsInDocker() function error: {0}", ex.Message));
+            }
+            return containerType > 0;
         }
 
         public static RegistryKey GetQuickTestProfessionalAutomationRegKey(RegistryView registry32)
         {
-            RegistryKey localKey = RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, RegistryView.Registry64);
-            localKey = localKey.OpenSubKey(@"SOFTWARE\Classes\AppID\{A67EB23A-1B8F-487D-8E38-A6A3DD150F0B}", true);
+            RegistryKey localKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            localKey = localKey.OpenSubKey(SOFTWARE_Classes_AppID_A67EB23A, true);
 
             return localKey;
         }
@@ -838,7 +856,7 @@ namespace HpToolsLauncher
 
         public static string GetUftViewerInstallPath()
         {
-            string ret = String.Empty;
+            string ret = string.Empty;
             var regKey = Registry.LocalMachine.OpenSubKey(UftViewerInstalltionFolderRegistryKey) ??
                          Registry.LocalMachine.OpenSubKey(UftViewerInstalltionFolderRegistryKey64Bit);
 
@@ -851,7 +869,7 @@ namespace HpToolsLauncher
                 }
             }
 
-            if (!String.IsNullOrEmpty(ret))
+            if (!string.IsNullOrEmpty(ret))
             {
                 ret = ret.EndsWith("\\") ? ret : (ret + "\\");
             }
@@ -890,7 +908,7 @@ namespace HpToolsLauncher
                 foreach (string resultsFileFullPath in resultFiles)
                 {
                     finalState = TestState.Unknown;
-                    string desc = "";
+                    string desc = string.Empty;
                     TestState state = GetStateFromUFTResultsFile(resultsFileFullPath, out desc);
                     if (finalState == TestState.Unknown || finalState == TestState.Passed)
                     {
@@ -925,13 +943,12 @@ namespace HpToolsLauncher
 
         }
 
-
         public static TestState GetTestStateFromLRReport(TestRunResults runDesc, string[] resultFiles)
         {
 
             foreach (string resultFileFullPath in resultFiles)
             {
-                string desc = "";
+                string desc = string.Empty;
                 runDesc.TestState = GetTestStateFromLRReport(resultFileFullPath, out desc);
                 if (runDesc.TestState == TestState.Failed)
                 {
@@ -998,16 +1015,14 @@ namespace HpToolsLauncher
 
         private static TestState GetTestStateFromLRReport(string resultFileFullPath, out string desc)
         {
-            desc = "";
-
             XmlDocument xdoc = new XmlDocument();
             xdoc.Load(resultFileFullPath);
-            return checkNodeStatus(xdoc.DocumentElement, out desc);
+            return CheckNodeStatus(xdoc.DocumentElement, out desc);
         }
 
-        private static TestState checkNodeStatus(XmlNode node, out string desc)
+        private static TestState CheckNodeStatus(XmlNode node, out string desc)
         {
-            desc = "";
+            desc = string.Empty;
             if (node == null)
                 return TestState.Failed;
 
@@ -1031,7 +1046,7 @@ namespace HpToolsLauncher
             //node has children
             foreach (XmlNode childNode in node.ChildNodes)
             {
-                TestState res = checkNodeStatus(childNode, out desc);
+                TestState res = CheckNodeStatus(childNode, out desc);
                 if (res == TestState.Failed)
                 {
                     if (string.IsNullOrEmpty(desc) && node.Attributes != null && node.Attributes["FullName"] != null)
@@ -1046,12 +1061,11 @@ namespace HpToolsLauncher
             return TestState.Passed;
         }
 
-
         private static TestState GetStateFromUFTResultsFile(string resultsFileFullPath, out string desc)
         {
             TestState finalState = TestState.Unknown;
-            desc = "";
-            var status = "";
+            desc = string.Empty;
+            string status;
             var doc = new XmlDocument { PreserveWhitespace = true };
             doc.Load(resultsFileFullPath);
             string strFileName = Path.GetFileName(resultsFileFullPath);
@@ -1068,7 +1082,6 @@ namespace HpToolsLauncher
                 XmlNode resultNode = ((XmlElement)node).GetElementsByTagName("Result").Item(0);
 
                 status = resultNode.InnerText;
-
             }
             else
             {
@@ -1265,12 +1278,10 @@ namespace HpToolsLauncher
     {
         private readonly int _milliSeconds;
 
-
         public Stopper(int milliSeconds)
         {
             this._milliSeconds = milliSeconds;
         }
-
 
         /// <summary>
         /// Creates timer in seconds to replace thread.sleep due to ui freezes in jenkins. 

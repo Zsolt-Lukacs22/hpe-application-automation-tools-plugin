@@ -1,39 +1,44 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
 package com.microfocus.application.automation.tools.uft.utils;
 
+import com.microfocus.application.automation.tools.uft.model.UftRunAsUser;
 import com.microfocus.application.automation.tools.results.projectparser.performance.XmlParserUtil;
 import com.microfocus.application.automation.tools.uft.model.RerunSettingsModel;
 import hudson.FilePath;
-import hudson.model.Node;
-import hudson.model.TaskListener;
+import hudson.model.*;
 import hudson.util.FormValidation;
+import hudson.util.Secret;
 import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.w3c.dom.Document;
@@ -41,6 +46,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import javax.annotation.Nonnull;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -51,6 +58,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
+
+import static com.microfocus.application.automation.tools.uft.utils.Constants.*;
 
 public class UftToolUtils {
 
@@ -156,6 +165,7 @@ public class UftToolUtils {
 
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document document = builder.parse(new ByteArrayInputStream(mtbxContent.getBytes()));
             document.getDocumentElement().normalize();
@@ -364,5 +374,72 @@ public class UftToolUtils {
 
         return nodes;
     }
+    public static boolean isPrintTestParams(@Nonnull Run<?, ?> build, @Nonnull TaskListener listener) {
+        ParametersAction parameterAction = build.getAction(ParametersAction.class);
+        String msg = "NOTE : The test parameters and their values are printed by default in both Console Output and Results###.xml. You can disable this behavior by defining a job-level parameter UFT_PRINT_TEST_PARAMS as boolean and set it to false.";
+        boolean isUftPrintTestParams = true;
+        if (parameterAction == null) {
+            listener.getLogger().println(msg);
+        } else {
+            ParameterValue uftPrintTestParams = parameterAction.getParameter(UFT_PRINT_TEST_PARAMS);
+            if (uftPrintTestParams == null) {
+                listener.getLogger().println(msg);
+            } else {
+                isUftPrintTestParams = (boolean) uftPrintTestParams.getValue();
+                listener.getLogger().println(String.format(KEY_VALUE_FORMAT, UFT_PRINT_TEST_PARAMS, isUftPrintTestParams ? "Yes" : "No")) ;
+            }
+        }
+        return isUftPrintTestParams;
+    }
 
+    public static UftRunAsUser getRunAsUser(@Nonnull Run<?, ?> build, @Nonnull TaskListener listener) throws IllegalArgumentException {
+        ParametersAction paramAction = build.getAction(ParametersAction.class);
+        UftRunAsUser uftRunAsUser = null;
+        if (paramAction != null) {
+            ParameterValue paramValuePair = paramAction.getParameter(UFT_RUN_AS_USER_NAME);
+            if (paramValuePair != null) {
+                String username = (String) paramValuePair.getValue();
+                if (StringUtils.isNotBlank(username)) {
+                    listener.getLogger().println(String.format(KEY_VALUE_FORMAT, UFT_RUN_AS_USER_NAME, username));
+                    paramValuePair = paramAction.getParameter(UFT_RUN_AS_USER_ENCODED_PWD);
+                    if (paramValuePair == null) {
+                        uftRunAsUser = getRunAsUserWithPassword(paramAction, username);
+                    } else {
+                        Secret encodedPwd = (Secret) paramValuePair.getValue();
+                        if (encodedPwd == null || StringUtils.isBlank(encodedPwd.getPlainText())) {
+                            uftRunAsUser = getRunAsUserWithPassword(paramAction, username);
+                        } else {
+                            paramValuePair = paramAction.getParameter(UFT_RUN_AS_USER_PWD);
+                            if (paramValuePair != null) {
+                                Secret pwd = (Secret) paramValuePair.getValue();
+                                if (pwd != null && StringUtils.isNotBlank(pwd.getPlainText())) {
+                                    throw new IllegalArgumentException(String.format("Please provide either %s or %s, but not both.", UFT_RUN_AS_USER_PWD, UFT_RUN_AS_USER_ENCODED_PWD));
+                                }
+                            }
+                            uftRunAsUser = new UftRunAsUser(username, encodedPwd.getPlainText());
+                        }
+                    }
+                }
+            }
+        }
+        return uftRunAsUser;
+    }
+
+    private static UftRunAsUser getRunAsUserWithPassword(ParametersAction paramAction, String username) throws IllegalArgumentException {
+        Secret pwd = getRunAsUserPassword(paramAction);
+        if (pwd == null || StringUtils.isBlank(pwd.getPlainText())) {
+            throw new IllegalArgumentException(String.format("Either %s or %s is required.", UFT_RUN_AS_USER_PWD, UFT_RUN_AS_USER_ENCODED_PWD));
+        }
+        return new UftRunAsUser(username, pwd);
+    }
+    private static Secret getRunAsUserPassword(ParametersAction paramAction) {
+        Secret pwd = null;
+        if (paramAction != null) {
+            ParameterValue paramValuePair = paramAction.getParameter(UFT_RUN_AS_USER_PWD);
+            if (paramValuePair != null) {
+                pwd = (Secret) paramValuePair.getValue();
+            }
+        }
+        return pwd;
+    }
 }

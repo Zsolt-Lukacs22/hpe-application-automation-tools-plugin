@@ -1,34 +1,39 @@
 ﻿/*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
 using HP.LoadRunner.Interop.Wlrun;
 using HpToolsLauncher.Properties;
 using HpToolsLauncher.RTS;
+using HpToolsLauncher.Utils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -112,18 +117,18 @@ namespace HpToolsLauncher.TestRunners
             this._errorsCount = 0;
         }
 
-        public TestRunResults RunTest(TestInfo scenarioInf, ref string errorReason, RunCancelledDelegate runCancelled)
+        public TestRunResults RunTest(TestInfo scenarioInf, ref string errorReason, RunCancelledDelegate runCancelled, out Dictionary<string, string> outParams)
         {
+            outParams = new Dictionary<string, string>();
             string scenarioPath = scenarioInf.TestPath;
             //prepare the instance that will contain test results for JUnit
-            TestRunResults runDesc = new TestRunResults();
+            TestRunResults runDesc = new TestRunResults { TestType = TestType.LoadRunner };
 
             ConsoleWriter.ActiveTestRun = runDesc;
             ConsoleWriter.WriteLineWithTime("Running: " + scenarioPath);
 
-            runDesc.TestType = TestType.LoadRunner.ToString();
             _resultsFolder = Helper.GetTempDir();
-            if (scenarioInf.ReportPath != null && !scenarioInf.ReportPath.Equals(""))
+            if (!scenarioInf.ReportPath.IsNullOrEmpty())
             {
                 _resultsFolder = scenarioInf.ReportPath;
             }
@@ -142,7 +147,6 @@ namespace HpToolsLauncher.TestRunners
                 {
                     Console.WriteLine(string.Format(Resources.CannotDeleteReportFolder, _resultsFolder));
                 }
-
             }
             else
             {
@@ -150,7 +154,7 @@ namespace HpToolsLauncher.TestRunners
                 {
                     Directory.CreateDirectory(_resultsFolder);
                 }
-                catch (Exception)
+                catch
                 {
                     errorReason = string.Format(Resources.FailedToCreateTempDirError, _resultsFolder);
                     runDesc.TestState = TestState.Error;
@@ -162,7 +166,6 @@ namespace HpToolsLauncher.TestRunners
             }
             //create LRR folder:
             _controller_result_dir = Path.Combine(_resultsFolder, LRR_FOLDER);
-
 
             Directory.CreateDirectory(_controller_result_dir);
 
@@ -223,7 +226,6 @@ namespace HpToolsLauncher.TestRunners
                     generateAnalysisReport(runDesc);
                     ConsoleWriter.WriteLine("analysis report generator finished");
 
-
                     //check for errors:
                     if (File.Exists(Path.Combine(_resultsFolder, "errors.xml")))
                     {
@@ -236,8 +238,8 @@ namespace HpToolsLauncher.TestRunners
                     int ignore = getErrorsCount(ERRORState.Ignore);
                     int fatal = getErrorsCount(ERRORState.Error);
                     runDesc.FatalErrors = fatal;
-                    ConsoleWriter.WriteLine(String.Format(Resources.LrErrorSummeryNum, ignore, fatal));
-                    ConsoleWriter.WriteLine("");
+                    ConsoleWriter.WriteLine(string.Format(Resources.LrErrorSummeryNum, ignore, fatal));
+                    ConsoleWriter.WriteLine(string.Empty);
                     if (_errors != null && _errors.Count > 0)
                     {
                         foreach (ERRORState state in Enum.GetValues(typeof(ERRORState)))
@@ -264,7 +266,6 @@ namespace HpToolsLauncher.TestRunners
                         Console.WriteLine(Resources.LRTestPassed);
                         runDesc.TestState = TestState.Passed;
                     }
-
                 }
                 catch (Exception e)
                 {
@@ -275,7 +276,6 @@ namespace HpToolsLauncher.TestRunners
                 }
 
                 //runDesc.ReportLocation = _resultsFolder;
-
             }
 
             runDesc.Runtime = scenarioStopWatch.Elapsed;
@@ -399,7 +399,6 @@ namespace HpToolsLauncher.TestRunners
                     ConsoleWriter.WriteLine("controller reult dir: " + _controller_result_dir);
                 }
 
-
                 if (ret != 0)
                 {
                     errorReason = string.Format(Resources.LrStartScenarioFail, scenario, ret);
@@ -444,7 +443,7 @@ namespace HpToolsLauncher.TestRunners
                             throw new Exception(ret.ToString());
                         }
                     }
-                    catch (Exception) { }
+                    catch { }
                 };
                 Thread t = new Thread(tstart);
                 t.Start();
@@ -554,18 +553,17 @@ namespace HpToolsLauncher.TestRunners
 
         void runner_ErrorDataReceived(object sender, DataReceivedEventArgs errData)
         {
-            if (!String.IsNullOrEmpty(errData.Data))
+            if (!errData.Data.IsNullOrEmpty())
                 ConsoleWriter.WriteErrLine(errData.Data);
         }
 
         void runner_OutputDataReceived(object sender, DataReceivedEventArgs outLine)
         {
-            if (!String.IsNullOrEmpty(outLine.Data))
+            if (!outLine.Data.IsNullOrEmpty())
             {
                 ConsoleWriter.WriteLine(outLine.Data);
             }
         }
-
 
         private void collateResults()
         {
@@ -581,7 +579,6 @@ namespace HpToolsLauncher.TestRunners
                 Stopper collateStopper = new Stopper(_pollingInterval * 1000);
                 collateStopper.Start();
             }
-
         }
 
         private void closeController()
@@ -693,7 +690,6 @@ namespace HpToolsLauncher.TestRunners
         }
 
         AutoResetEvent autoEvent = new AutoResetEvent(false);
-
 
         private bool waitForScenario(ref string errorReason)
         {
@@ -825,29 +821,21 @@ namespace HpToolsLauncher.TestRunners
 
             }
             ConsoleWriter.WriteErrLine("total number of errors: " + _errorsCount);
-
-
-
         }
-
 
         private int getErrorsCount(ERRORState state)
         {
             return (_errors != null) ? (from x in _errors where x.Value.state == state select x.Value.occurences).Sum() : 0;
         }
 
-
-
         private void updateError(string message)
         {
-
             ControllerError s = _errors[message];
             if (s != null)
             {
                 s.occurences++;
                 _errors[message] = s;
             }
-
         }
 
         private void ScenarioEvents_OnScenarioEnded()
@@ -856,7 +844,6 @@ namespace HpToolsLauncher.TestRunners
             _scenarioEnded = true;
 
         }
-
 
         private bool isFinished()
         {
@@ -905,7 +892,6 @@ namespace HpToolsLauncher.TestRunners
 
         private bool validateScenario(LrScenario scenario, ref string errorReason)
         {
-
             //validate that scenario has SLA
             if (!scenario.DoesScenarioHaveSLAConfiguration())
             {
@@ -976,8 +962,6 @@ namespace HpToolsLauncher.TestRunners
                     p.Kill();
                     Stopper stopper = new Stopper(500);
                     stopper.Start();
-
-
                 }
 
                 // check if any wlrun.exe process existed, kill them.
@@ -1032,6 +1016,9 @@ namespace HpToolsLauncher.TestRunners
             //ConsoleWriter.WriteLine("Closing controller");
             closeController();
             cleanENV();
+        }
+        public void SafelyCancel()
+        {
         }
     }
 }

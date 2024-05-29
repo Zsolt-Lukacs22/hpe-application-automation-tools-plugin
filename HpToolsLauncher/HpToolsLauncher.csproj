@@ -89,14 +89,16 @@
     <Compile Include="ConsoleQuickEdit.cs" />
     <Compile Include="ElevatedProcess.cs" />
     <Compile Include="IProcessAdapter.cs" />
-    <Compile Include="EncryptionUtils.cs" />
+    <Compile Include="Utils\Encoder.cs" />
+    <Compile Include="Utils\Encrypter.cs" />
     <Compile Include="Launcher.cs" />
     <Compile Include="ConsoleWriter.cs" />
     <Compile Include="Interfaces\IAssetRunner.cs" />
     <Compile Include="Interfaces\IFileSysTestRunner.cs" />
     <Compile Include="Interfaces\IXmlBuilder.cs" />
     <Compile Include="ExportOptions.cs" />
-    <Compile Include="Helper.cs" />
+    <Compile Include="Utils\Extensions.cs" />
+    <Compile Include="Utils\Helper.cs" />
     <Compile Include="IniManager.cs" />
     <Compile Include="JavaProperties\JavaIniFile.cs" />
     <Compile Include="JavaProperties\JavaProperties.cs" />
@@ -105,7 +107,7 @@
       <DependentUpon>junit.xsd</DependentUpon>
       <SubType>code</SubType>
     </Compile>
-    <Compile Include="McConnection.cs" />
+    <Compile Include="Common\McConnectionInfo.cs" />
     <Compile Include="MtbManager.cs" />
     <Compile Include="NativeProcess.cs" />
     <Compile Include="ParallelRunner\ParallelRunnerEnvironmentUtil.cs" />
@@ -138,7 +140,8 @@
     <Compile Include="TestRunners\ApiTestRunner.cs" />
     <Compile Include="Runners\AlmTestSetsRunner.cs" />
     <Compile Include="TestSuiteRunResults.cs" />
-    <Compile Include="WinUserNativeMethods.cs" />
+    <Compile Include="Utils\RunAsUser.cs" />
+    <Compile Include="Common\WinUserNativeMethods.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Interfaces\.svn\prop-base\" />

@@ -1,9 +1,21 @@
 # What's new in earlier versions
 
 
-This page shows a history of the enhancements made to the Micro Focus Application Automation Tools Jenkins plugin.
+This page shows a history of the enhancements made to the OpenText Application Automation Tools Jenkins plugin.
 
 See the [Changelog ](https://wiki.jenkins.io/display/JENKINS/Changelog)for information about beta versions and recent patches.
+
+[What&#39;s New in version CE 23.4 ](#what&#39;s-new-in-version-CE-23&#46;4)
+
+[What&#39;s New in version 23.3.0 ](#what&#39;s-new-in-version-23&#46;3&#46;0)
+
+[What&#39;s New in version 8.0 ](#what&#39;s-new-in-version-8&#46;0)
+
+[What&#39;s New in versions 7.7 and 7.8 ](#what&#39;s-new-in-versions-7&#46;7-and-7&#39;8)
+
+[What&#39;s New in version 7.6 ](#what&#39;s-new-in-version-7&#46;6)
+
+[What&#39;s New in version 7.5 ](#what&#39;s-new-in-version-7&#46;5)
 
 [What&#39;s New in version 7.4 ](#what&#39;s-new-in-version-7&#46;4)
 
@@ -31,6 +43,98 @@ See the [Changelog ](https://wiki.jenkins.io/display/JENKINS/Changelog)for infor
 
 [What&#39;s New in version 5.9 ](#what&#39;s-new-in-version-5.9)
 
+## What&#39;s New in version CE 23&#46;4
+
+Version CE 23.4 introduced the following enhancements and fixes:
+
+**UFT One**
+ - Support for access key authentication to run parallel mobile tests.
+ - Ability to run tests on public devices hosted by ValueEdge Digital Lab.
+
+**UFT Digital Lab**
+ - Ability to upload an application to a specific workspace during a Jenkins pipeline cycle.
+
+**ALM Octane**
+- Bug fixes.
+
+**LoadRunner Enterprise**
+ - Parameterization support for the Timeslot duration.
+
+## What&#39;s New in version 23&#46;3&#46;0
+
+Version 23.3.0 introduced the following enhancements and fixes:
+
+**ALM Octane**
+- Bug fixes.
+
+**UFT One**
+ - Company name rebranded to OpenText.
+ - UFT Mobile renamed to Digital Lab.
+ - Enhancement of File System jobs to work correctly inside Docker.
+ - Bug fixes and optimizations.
+
+
+## What&#39;s New in version 8&#46;0
+
+Version 8.0 introduced the following enhancements and fixes:
+
+**ALM Octane**
+
+- Support for Active choice parameters with Jenkins.
+- Bug fixes.
+
+For information about enhancements introduced in previous versions, see [What's new in earlier versions](WhatsNewEarlier.md). 
+
+## What&#39;s New in versions 7.7 and 7.8
+
+Versions 7.7 and 7.8 introduced the following enhancements and fixes:
+
+**ALM Octane**
+
+- Support for environment variables in auto actions.
+- Bug fixes.
+
+**ALM**
+
+- 'Ability to use the Jenkins proxy settings to open a connection when verifying the ALM URL.
+
+**UFT One**
+
+- Support running UFT One as a different user.
+- Release UFT One license safely when aborting Jenkins builds.
+- Bug fixes and optimizations.
+
+## What&#39;s New in version 7&#46;6
+
+Version 7.6 introduced the following enhancements and fixes:
+
+**UFT One**
+
+- Implementation of the **Password** type for the Table of Parameters (for ALM and File System jobs)
+- A job level option to hide the logging of parameters (for File System jobs)
+- The ability to transfer parameters from one test to another through a batch command (using MTBX, for File System jobs)
+- Layout bug fixes and optimizations
+
+**ALM Octane**
+
+- Abilitiy to enable the **ALM Octane pipeline** action for multi-branch projects
+- HTTPS support for the Security tool
+- Defect fixes
+ 
+## What&#39;s New in version 7&#46;5
+
+Version 7.5 introduced the following enhancements and fixes:
+
+**ALM**
+
+- For the **Upload test result to ALM using field mapping** build step:
+    - You can now search for a test set by its name in a specific folder instead of all folders. 
+    - Defect fix: The check for the test map name is suppressed if no new test is being created.
+
+**UFT One**
+
+-	Layout fixes that were broken in Jenkins 2.346.1 LTS latest version. 
+
 ## What&#39;s New in version 7&#46;4
 
 Version 7.4 introduced the following enhancements:
@@ -49,8 +153,6 @@ Version 7.4 introduced the following enhancements:
 -	Ability to specify the UFT Report timestamp format, by defining a date format on the Jenkins configuration page. (Manage Jenkins > Configure System, Run Result (UFT Report) timestamp format string section).
 -	Console Output text encoding configuration on the job level.
 -	Layout improvements. 
-
-For information about enhancements introduced in previous versions, see [What's new in earlier versions](WhatsNewEarlier.md). 
 
 ## Release notes
 
@@ -297,5 +399,6 @@ https://issues.jenkins-ci.org/browse/JENKINS-58134
 
 - Bug fixes
 
+Note: This version of the plugin does not work with UFT Mobile 3.3 and UFT 14.03.
 
 

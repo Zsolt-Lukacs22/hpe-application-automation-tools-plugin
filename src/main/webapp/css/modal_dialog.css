@@ -7,7 +7,7 @@
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * (c) Copyright 2012-2023 Micro Focus or one of its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
  * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
@@ -112,7 +112,7 @@
     color: #000;text-decoration: none;cursor: pointer;
 }
 
-.browser-item {
+.browser-item, .modal-body-item {
     position: relative;
     padding-top: 25px;
     vertical-align: middle;
@@ -138,4 +138,10 @@
     line-height: normal;
     letter-spacing: normal;
     color: #000000;
+}
+
+.modal-body-item select {
+    float: right;
+    vertical-align: middle;
+    width: 200px;
 }

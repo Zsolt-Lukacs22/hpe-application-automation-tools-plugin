@@ -1,28 +1,32 @@
 ﻿/*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -343,20 +347,20 @@ namespace HpToolsLauncherTests
         public void GetMCProxySettingsTest_ValidMCSettings_ReturnsExpectedProxySettings()
         {
             McConnectionInfo mcConnectionInfo = new McConnectionInfo();
-            mcConnectionInfo.MobileProxySetting_Address = "192.168.1.1";
-            mcConnectionInfo.MobileProxySetting_Port = 8080;
-            mcConnectionInfo.MobileProxySetting_Authentication = 1;
-            mcConnectionInfo.MobileProxySetting_UserName = "test";
-            mcConnectionInfo.MobileProxySetting_Password = "test";
+            mcConnectionInfo.ProxyAddress = "192.168.1.1";
+            mcConnectionInfo.ProxyPort = 8080;
+            mcConnectionInfo.UseProxyAuth = true;
+            mcConnectionInfo.ProxyUserName = "test";
+            mcConnectionInfo.ProxyPassword = "test";
 
             ProxySettings settings = ParallelRunnerEnvironmentUtil.GetMCProxySettings(mcConnectionInfo);
 
             Assert.IsNotNull(settings);
             Assert.IsNotNull(settings.authentication);
 
-            Assert.AreEqual(mcConnectionInfo.MobileProxySetting_UserName, settings.authentication.username);
-            Assert.AreEqual(mcConnectionInfo.MobileProxySetting_Address, settings.hostname);
-            Assert.AreEqual(mcConnectionInfo.MobileProxySetting_Port, settings.port);
+            Assert.AreEqual(mcConnectionInfo.ProxyUserName, settings.authentication.username);
+            Assert.AreEqual(mcConnectionInfo.ProxyAddress, settings.hostname);
+            Assert.AreEqual(mcConnectionInfo.ProxyPort, settings.port);
         }
 
         [TestMethod]
@@ -373,20 +377,20 @@ namespace HpToolsLauncherTests
         public void ParseMCSettingsTest_ValidMCSettingsSSL_ReturnsExpectedSettings()
         {
             McConnectionInfo mcConnectionInfo = new McConnectionInfo();
-            mcConnectionInfo.MobileHostAddress = "192.168.1.1";
-            mcConnectionInfo.MobileHostPort = "8080";
-            mcConnectionInfo.MobileUserName = "test";
-            mcConnectionInfo.MobilePassword = "test";
-            mcConnectionInfo.MobileUseSSL = 1;
+            mcConnectionInfo.HostAddress = "192.168.1.1";
+            mcConnectionInfo.HostPort = "8080";
+            mcConnectionInfo.UserName = "test";
+            mcConnectionInfo.Password = "test";
+            mcConnectionInfo.UseSSL = true;
 
             UFTSettings settings = ParallelRunnerEnvironmentUtil.ParseMCSettings(mcConnectionInfo);
 
             Assert.IsNotNull(settings);
             Assert.IsNotNull(settings.mc);
 
-            Assert.AreEqual(mcConnectionInfo.MobileHostAddress, settings.mc.hostname);
-            Assert.AreEqual(mcConnectionInfo.MobileHostPort, settings.mc.port.ToString());
-            Assert.AreEqual(mcConnectionInfo.MobileUserName, settings.mc.username);
+            Assert.AreEqual(mcConnectionInfo.HostAddress, settings.mc.hostname);
+            Assert.AreEqual(mcConnectionInfo.HostPort, settings.mc.port.ToString());
+            Assert.AreEqual(mcConnectionInfo.UserName, settings.mc.username);
             Assert.AreEqual("https", settings.mc.protocol);
         }
 
@@ -394,19 +398,19 @@ namespace HpToolsLauncherTests
         public void ParseMCSettingsTest_ValidMCSettingsNonSSL_ReturnsExpectedSettings()
         {
             McConnectionInfo mcConnectionInfo = new McConnectionInfo();
-            mcConnectionInfo.MobileHostAddress = "192.168.1.1";
-            mcConnectionInfo.MobileHostPort = "8080";
-            mcConnectionInfo.MobileUserName = "test";
-            mcConnectionInfo.MobilePassword = "test";
+            mcConnectionInfo.HostAddress = "192.168.1.1";
+            mcConnectionInfo.HostPort = "8080";
+            mcConnectionInfo.UserName = "test";
+            mcConnectionInfo.Password = "test";
 
             UFTSettings settings = ParallelRunnerEnvironmentUtil.ParseMCSettings(mcConnectionInfo);
 
             Assert.IsNotNull(settings);
             Assert.IsNotNull(settings.mc);
 
-            Assert.AreEqual(mcConnectionInfo.MobileHostAddress, settings.mc.hostname);
-            Assert.AreEqual(mcConnectionInfo.MobileHostPort, settings.mc.port.ToString());
-            Assert.AreEqual(mcConnectionInfo.MobileUserName, settings.mc.username);
+            Assert.AreEqual(mcConnectionInfo.HostAddress, settings.mc.hostname);
+            Assert.AreEqual(mcConnectionInfo.HostPort, settings.mc.port.ToString());
+            Assert.AreEqual(mcConnectionInfo.UserName, settings.mc.username);
             Assert.AreEqual("http", settings.mc.protocol);
         }
 

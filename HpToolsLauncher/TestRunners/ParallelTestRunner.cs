@@ -1,32 +1,38 @@
 ﻿/*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
 using HpToolsLauncher.ParallelRunner;
+using HpToolsLauncher.Utils;
+using QTObjectModelLib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -45,9 +51,7 @@ namespace HpToolsLauncher.TestRunners
         // each test has a list of environments that it will run on
         private readonly Dictionary<string, List<string>> _environments;
         private readonly IAssetRunner _runner;
-        private TimeSpan _timeout;
         private readonly McConnectionInfo _mcConnectionInfo;
-        private readonly string _mobileInfo;
         private const string ParallelRunnerExecutable = "ParallelRunner.exe";
         private string _parallelRunnerPath;
         private RunCancelledDelegate _runCancelled;
@@ -56,16 +60,17 @@ namespace HpToolsLauncher.TestRunners
         private const string ParallelRunnerArguments = "-o static -c \"{0}\"";
 
         private List<string> _configFiles = new List<string>();
+        private IProcessAdapter _processAdapter;
+        private readonly Type _qtType = Type.GetTypeFromProgID("Quicktest.Application");
+        private RunAsUser _uftRunAsUser;
 
-        public ParallelTestRunner(IAssetRunner runner, TimeSpan timeout, McConnectionInfo mcConnectionInfo,
-            string mobileInfo, Dictionary<string, List<string>> environments)
+        public ParallelTestRunner(IAssetRunner runner, McConnectionInfo mcConnectionInfo, Dictionary<string, List<string>> environments, RunAsUser uftRunAsUser)
         {
             _runner = runner;
-            _timeout = timeout;
             _mcConnectionInfo = mcConnectionInfo;
-            _mobileInfo = mobileInfo;
             _environments = environments;
             _canRun = TrySetupParallelRunner();
+            _uftRunAsUser = uftRunAsUser;
         }
 
         /// <summary>
@@ -105,7 +110,7 @@ namespace HpToolsLauncher.TestRunners
                     runResults.ErrorDesc = "ParallelRunner test has FAILED!";
                     runResults.TestState = TestState.Failed;
                     break;
-                case (int)ParallelRunResult.Canceled:
+                case (int)ParallelRunResult.Cancelled:
                     runResults.ErrorDesc = "ParallelRunner was stopped since job has timed out!";
                     ConsoleWriter.WriteErrLine(runResults.ErrorDesc);
                     runResults.TestState = TestState.Error;
@@ -133,10 +138,9 @@ namespace HpToolsLauncher.TestRunners
         /// <returns>
         /// The run results for the current test.
         /// </returns>
-        public TestRunResults RunTest(TestInfo testInfo, ref string errorReason, RunCancelledDelegate runCancelled)
+        public TestRunResults RunTest(TestInfo testInfo, ref string errorReason, RunCancelledDelegate runCancelled, out Dictionary<string, string> outParams)
         {
-            // change the DCOM setting for qtp application
-            Helper.ChangeDCOMSettingToInteractiveUser();
+            outParams = new Dictionary<string, string>();
 
             testInfo.ReportPath = testInfo.TestPath + @"\ParallelReport";
 
@@ -150,7 +154,7 @@ namespace HpToolsLauncher.TestRunners
                 ErrorDesc = errorReason,
                 TestState = TestState.Unknown,
                 TestPath = testInfo.TestPath,
-                TestType = TestType.ParallelRunner.ToString()
+                TestType = TestType.ParallelRunner
             };
 
             // set the active test run
@@ -185,7 +189,7 @@ namespace HpToolsLauncher.TestRunners
             _runCancelled = runCancelled;
 
             // prepare the json file for the process
-            var configFilePath = string.Empty;
+            string configFilePath;
 
             try
             {
@@ -202,7 +206,7 @@ namespace HpToolsLauncher.TestRunners
 
             // Parallel runner argument "-c" for config path and "-o static" so that
             // the output from ParallelRunner is compatible with Jenkins
-            var arguments = String.Format(ParallelRunnerArguments, configFilePath);
+            var arguments = string.Format(ParallelRunnerArguments, configFilePath);
 
             // the test can be started now
             runResults.TestState = TestState.Running;
@@ -214,7 +218,7 @@ namespace HpToolsLauncher.TestRunners
             runResults.ErrorDesc = null;
 
             // execute parallel runner and get the run result status
-            int exitCode = ExecuteProcess(_parallelRunnerPath, arguments, ref failureReason);
+            int exitCode = ExecuteProcess(arguments, ref failureReason);
 
             // set the status of the build based on the exit code
             RunResultsFromParallelRunnerExitCode(runResults, exitCode, failureReason, ref errorReason);
@@ -231,18 +235,44 @@ namespace HpToolsLauncher.TestRunners
 
         public void CleanUp()
         {
-            // we need to remove the json config files as they are no longer needed
-            foreach (var configFile in _configFiles)
+            // DONT'T remove the json files from _configFiles as they are useful for troubleshooting
+        }
+
+        private void CloseUft()
+        {
+            try
+            {
+                var qtpApplication = Activator.CreateInstance(_qtType) as Application;
+
+                //if the app is running, close it.
+                if (qtpApplication.Launched)
+                {
+                    qtpApplication.Quit();
+                }
+            }
+            catch
+            {
+                //nothing to do. (cleanup code should not throw exceptions, and there is no need to log this as an error in the test)
+            }
+        }
+
+        public void SafelyCancel()
+        {
+            ConsoleWriter.WriteLine(Resources.GeneralStopAborted);
+            CloseUft();
+            if (_processAdapter != null && !_processAdapter.HasExited)
             {
                 try
                 {
-                    File.Delete(configFile);
+                    _processAdapter.Close();
                 }
-                catch (Exception)
+                catch
                 {
-                    ConsoleWriter.WriteErrLine("Unable to remove configuration file: " + configFile);
+                    _processAdapter.Kill();
                 }
             }
+            CleanUp();
+            ConsoleWriter.WriteLine(Resources.GeneralAbortedByUser);
         }
 
         #region Process
@@ -256,25 +286,26 @@ namespace HpToolsLauncher.TestRunners
             Process currentProcess = Process.GetCurrentProcess();
             Process parentProcess = currentProcess.Parent();
 
-            // if they are not in the same session we will assume it is a service
-            Process explorer = null;
+            Process[] explorers;
             try
             {
-                explorer = Process.GetProcessesByName("explorer").FirstOrDefault();
+                explorers = Process.GetProcessesByName("explorer");
             }
             catch (InvalidOperationException)
             {
-                return false;
+                // try to start the process from the current session
+                return true;
             }
 
             // could not retrieve the explorer process
-            if (explorer == null)
+            if (explorers == null || explorers.Length == 0)
             {
                 // try to start the process from the current session
-                return false;
+                return true;
             }
 
-            return parentProcess.SessionId != explorer.SessionId;
+            // if they are not in the same session we will assume it is a service
+            return explorers.Where(p => p.SessionId == parentProcess.SessionId).Any();
         }
 
         /// <summary>
@@ -287,20 +318,23 @@ namespace HpToolsLauncher.TestRunners
         {
             try
             {
-                if (!IsParentProcessRunningInUserSession())
+                //print command line 
+                ConsoleWriter.WriteLineWithTime(string.Format("{0} {1}", fileName, arguments));
+
+                if (IsParentProcessRunningInUserSession())
                 {
-                    Process process = new Process();
-
-                    InitProcess(process, fileName, arguments);
-
-                    return process;
+                    return InitProcess(fileName, arguments);
                 }
 
+                if (_uftRunAsUser != null)
+                {
+                    ConsoleWriter.WriteLine("Starting ParallelRunner as different user from service session is not supported at this moment.");
+                    return null;
+                }
                 ConsoleWriter.WriteLine("Starting ParallelRunner from service session!");
 
                 // the process must be started in the user session
-                ElevatedProcess elevatedProcess = new ElevatedProcess(fileName, arguments, Helper.GetSTInstallPath());
-                return elevatedProcess;
+                return new ElevatedProcess(fileName, arguments, Helper.GetSTInstallPath());
             }
             catch (Exception)
             {
@@ -311,15 +345,14 @@ namespace HpToolsLauncher.TestRunners
         /// <summary>
         /// executes the run of the test by using the Init and RunProcss routines
         /// </summary>
-        /// <param name="fileName">the prcess file name</param>
         /// <param name="arguments">the arguments for the process</param>
         /// <param name="failureReason"> the reason why the process failed </param>
         /// <returns> the exit code of the process </returns>
-        private int ExecuteProcess(string fileName, string arguments, ref string failureReason)
+        private int ExecuteProcess(string arguments, ref string failureReason)
         {
-            IProcessAdapter processAdapter = ProcessAdapterFactory.CreateAdapter(GetProcessTypeForCurrentSession(fileName, arguments));
+            _processAdapter = ProcessAdapterFactory.CreateAdapter(GetProcessTypeForCurrentSession(_parallelRunnerPath, arguments));
 
-            if (processAdapter == null)
+            if (_processAdapter == null)
             {
                 failureReason = "Could not create ProcessAdapter instance!";
                 return (int)ParallelRunResult.Error;
@@ -327,14 +360,14 @@ namespace HpToolsLauncher.TestRunners
 
             try
             {
-                int exitCode = RunProcess(processAdapter);
+                int exitCode = RunProcess(_processAdapter);
 
                 if (_runCancelled())
                 {
-                    if (!processAdapter.HasExited)
+                    if (!_processAdapter.HasExited)
                     {
-                        processAdapter.Kill();
-                        return (int)ParallelRunResult.Canceled;
+                        _processAdapter.Kill();
+                        return (int)ParallelRunResult.Cancelled;
                     }
                 }
 
@@ -347,9 +380,9 @@ namespace HpToolsLauncher.TestRunners
             }
             finally
             {
-                if (processAdapter != null)
+                if (_processAdapter != null)
                 {
-                    processAdapter.Close();
+                    _processAdapter.Close();
                 }
             }
         }
@@ -357,20 +390,30 @@ namespace HpToolsLauncher.TestRunners
         /// <summary>
         /// Initializes the ParallelRunner process
         /// </summary>
-        /// <param name="proc"> the process </param>
         /// <param name="fileName">the file name</param>
         /// <param name="arguments"> the process arguments </param>
-        private void InitProcess(Process proc, string fileName, string arguments)
+        private Process InitProcess(string fileName, string arguments)
         {
-            var processStartInfo = new ProcessStartInfo
+            var info = new ProcessStartInfo
             {
                 FileName = fileName,
                 Arguments = arguments,
                 WorkingDirectory = Directory.GetCurrentDirectory(),
                 WindowStyle = ProcessWindowStyle.Hidden
             };
+            if (_uftRunAsUser != null)
+            {
+                info.UserName = _uftRunAsUser.Username;
+                info.Password = _uftRunAsUser.Password;
+                info.UseShellExecute = false;
+                info.RedirectStandardOutput = true;
+                info.RedirectStandardError = true;
+            }
 
-            proc.StartInfo = processStartInfo;
+            Process p = new Process { StartInfo = info };
+            p.ErrorDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.Error.WriteLine(e.Data); };
+            p.OutputDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.Out.WriteLine(e.Data); };
+            return p;
         }
 
         /// <summary>
@@ -400,7 +443,7 @@ namespace HpToolsLauncher.TestRunners
         Pass = 1004,
         Warning = 1005,
         Fail = 1006,
-        Canceled = 1007,
+        Cancelled = 1007,
         Error = 1008,
     }
 }

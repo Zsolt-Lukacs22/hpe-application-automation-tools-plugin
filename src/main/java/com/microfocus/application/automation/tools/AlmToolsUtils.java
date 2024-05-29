@@ -1,28 +1,32 @@
 /*
- * Certain versions of software and/or documents ("Material") accessible here may contain branding from
- * Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.  As of September 1, 2017,
- * the Material is now offered by Micro Focus, a separately owned and operated company.  Any reference to the HP
- * and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE
- * marks are the property of their respective owners.
+ * Certain versions of software accessible here may contain branding from Hewlett-Packard Company (now HP Inc.) and Hewlett Packard Enterprise Company.
+ * This software was acquired by Micro Focus on September 1, 2017, and is now offered by OpenText.
+ * Any reference to the HP and Hewlett Packard Enterprise/HPE marks is historical in nature, and the HP and Hewlett Packard Enterprise/HPE marks are the property of their respective owners.
  * __________________________________________________________________
  * MIT License
  *
- * (c) Copyright 2012-2021 Micro Focus or one of its affiliates.
+ * Copyright 2012-2023 Open Text
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
- * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * The only warranties for products and services of Open Text and
+ * its affiliates and licensors ("Open Text") are as may be set forth
+ * in the express warranty statements accompanying such products and services.
+ * Nothing herein should be construed as constituting an additional warranty.
+ * Open Text shall not be liable for technical or editorial errors or
+ * omissions contained herein. The information contained herein is subject
+ * to change without notice.
  *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
+ * Except as specifically indicated otherwise, this document contains
+ * confidential information and a valid license is required for possession,
+ * use or copying. If this work is provided to the U.S. Government,
+ * consistent with FAR 12.211 and 12.212, Commercial Computer Software,
+ * Computer Software Documentation, and Technical Data for Commercial Items are
+ * licensed to the U.S. Government under vendor's standard commercial license.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- * THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ___________________________________________________________________
  */
 
@@ -32,22 +36,22 @@ import com.microfocus.application.automation.tools.settings.UFTEncryptionGlobalC
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.model.*;
+import hudson.security.ACL;
+import hudson.security.AuthorizationStrategy;
+import hudson.security.FullControlOnceLoggedInAuthorizationStrategy;
 import hudson.util.ArgumentListBuilder;
 import hudson.util.Secret;
 import jenkins.model.Jenkins;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 @SuppressWarnings("squid:S1160")
 public final class AlmToolsUtils {
-
 
 	private AlmToolsUtils() {
         // no meaning instantiating
@@ -152,21 +156,21 @@ public final class AlmToolsUtils {
 
 		URL hpToolsAborterUrl = Jenkins.get().pluginManager.uberClassLoader.getResource("HpToolsAborter.exe");
         FilePath hpToolsAborterFile = runWorkspace.child(hpToolsAborter_exe);
-        
+
         args.add(hpToolsAborterFile);
         args.add(paramFileName);
-        
+
         hpToolsAborterFile.copyFrom(hpToolsAborterUrl);
-        
+
         int returnCode = launcher.launch().cmds(args).stdout(out).pwd(hpToolsAborterFile.getParent()).join();
-        
+
         try {
         	hpToolsAborterFile.delete();
 		} catch (Exception e) {
-			 listener.error("failed copying HpToolsAborter" + e);
+			 listener.error("failed copying HpToolsAborter: " + e);
 		}
-        
-        
+
+
         if (returnCode != 0) {
             if (returnCode == 1) {
                 build.setResult(Result.FAILURE);
@@ -177,6 +181,57 @@ public final class AlmToolsUtils {
             }
         }
     }
-    
-    
+
+    public static boolean tryCreatePropsFile(TaskListener listener, String props, FilePath fileProps) throws InterruptedException, IOException {
+
+        if (StringUtils.isBlank(props)) {
+            listener.fatalError("Missing properties text content."); //should never happen
+            return false;
+        }
+        if (fileProps.exists() && fileProps.length() > 0) { // this should never happen
+            listener.getLogger().println(String.format("NOTE: The file [%s] already exists.", fileProps.getRemote()));
+        }
+
+        String msg = String.format("Trying to create or replace the file [%s] ...", fileProps.getRemote());
+        listener.getLogger().println(msg);
+        return trySaveAndCheckPropsFile(listener, props, fileProps, 0);
+    }
+
+    private static boolean trySaveAndCheckPropsFile(TaskListener listener, String props, FilePath fileProps, int idxOfRetry) throws InterruptedException {
+        boolean ok = false;
+        try {
+            try (InputStream in = IOUtils.toInputStream(props, StandardCharsets.UTF_8)) {
+                fileProps.copyFrom(in);
+            }
+            Thread.sleep(1500);
+            if (fileProps.exists() && fileProps.length() > 0) {
+                String msg = "Successfully created the file";
+                if (idxOfRetry == 0) {
+                    listener.getLogger().println(String.format("%s [%s].", msg, fileProps.getName()));
+                } else {
+                    listener.getLogger().println(String.format("%s after %d %s.", msg, idxOfRetry, (idxOfRetry == 1 ? "retry" : "retries")));
+                }
+                ok = true;
+            } else if (idxOfRetry > 5) {
+                listener.fatalError("Failed to save the file " + fileProps.getName() + " after 5 retries.");
+            } else {
+                ok = trySaveAndCheckPropsFile(listener, props, fileProps, ++idxOfRetry);
+            }
+        } catch (IOException ioe) {
+            if (idxOfRetry > 5) {
+                listener.fatalError("Failed to save the file " + fileProps.getName() + " after 5 retries: " + ioe.getMessage());
+            } else {
+                Thread.sleep(1500);
+                ok = trySaveAndCheckPropsFile(listener, props, fileProps, ++idxOfRetry);
+            }
+        }
+        return ok;
+    }
+
+    public static String getPropsAsString(Properties props) throws IOException {
+        try (OutputStream stream = new ByteArrayOutputStream()) {
+            props.store(stream, "");
+            return stream.toString();
+        }
+    }
 }
